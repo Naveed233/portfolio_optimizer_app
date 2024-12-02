@@ -122,21 +122,21 @@ if __name__ == "__main__":
             # Monte Carlo Simulations
             monte_carlo_results, weights_record = optimizer.monte_carlo_simulation()
 
-            # Plot Efficient Frontier
+            # Plot Efficient Frontier with Selected Portfolio
+            optimal_weights = optimizer.min_volatility(specific_target_return)
+            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+
             st.subheader("Efficient Frontier with Monte Carlo Simulations")
             fig, ax = plt.subplots(figsize=(10, 6))
             plt.scatter(monte_carlo_results[0, :], monte_carlo_results[1, :], c=monte_carlo_results[2, :], cmap='viridis', alpha=0.5, label='Monte Carlo Simulations')
             plt.colorbar(label='Sharpe Ratio')
             plt.plot(efficient_frontier[:, 0], efficient_frontier[:, 1], label='Efficient Frontier', color='red')
+            plt.scatter(portfolio_volatility, portfolio_return, color='black', label='Selected Portfolio', marker='X', s=100)
             plt.xlabel('Risk (Standard Deviation)')
             plt.ylabel('Return')
             plt.title('Efficient Frontier and Simulations')
             plt.legend()
             st.pyplot(fig)
-
-            # Optimize for Specific Target Return
-            optimal_weights = optimizer.min_volatility(specific_target_return)
-            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
 
             # Display Optimal Portfolio
             allocation = pd.DataFrame({
@@ -151,6 +151,24 @@ if __name__ == "__main__":
             st.write(f"Expected Annual Return: {portfolio_return * 100:.2f}%")
             st.write(f"Annual Volatility (Risk): {portfolio_volatility * 100:.2f}%")
             st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
+
+            # Option to Select a Different Portfolio
+            st.subheader("Select a Different Portfolio")
+            selected_target_return = st.slider("Choose a different target return (in %)", min_value=-5.0, max_value=30.0, value=15.0, step=0.1) / 100
+            different_weights = optimizer.min_volatility(selected_target_return)
+            diff_return, diff_volatility, diff_sharpe = optimizer.portfolio_stats(different_weights)
+
+            st.write(f"Metrics for Target Return {selected_target_return * 100:.2f}%:")
+            st.write(f"Expected Annual Return: {diff_return * 100:.2f}%")
+            st.write(f"Annual Volatility (Risk): {diff_volatility * 100:.2f}%")
+            st.write(f"Sharpe Ratio: {diff_sharpe:.2f}")
+
+            allocation_diff = pd.DataFrame({
+                'Asset': optimizer.returns.columns,
+                'Weight': different_weights
+            })
+            st.write("Portfolio Allocation:")
+            st.write(allocation_diff)
 
             # Backtesting
             st.subheader("Backtest Portfolio Performance")
@@ -179,3 +197,4 @@ if __name__ == "__main__":
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
