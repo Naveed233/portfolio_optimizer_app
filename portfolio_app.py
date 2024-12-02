@@ -96,7 +96,7 @@ class PortfolioOptimizer:
                 efficient_portfolios.append((portfolio_volatility, portfolio_return))
             except ValueError:
                 continue  # Skip target returns that are not achievable
-        return np.array(efficient_portiers)
+        return np.array(efficient_portfolios)
 
     def monte_carlo_simulation(self, num_simulations=10000):
         # Perform Monte Carlo simulations to explore possible portfolio outcomes
