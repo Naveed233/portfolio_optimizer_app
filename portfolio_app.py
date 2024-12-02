@@ -34,7 +34,7 @@ class PortfolioOptimizer:
 
     def denoise_returns(self):
         # Apply PCA for denoising
-        pca = PCA(n_components=len(self.returns.columns))
+        pca = PCA(n_components=min(len(self.returns.columns), len(self.returns)))
         pca_returns = pca.fit_transform(self.returns)
         explained_variance = pca.explained_variance_ratio_.cumsum()
         num_components = np.argmax(explained_variance >= 0.95) + 1
