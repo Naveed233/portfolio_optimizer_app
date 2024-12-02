@@ -9,9 +9,10 @@ import io
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-# Black-Litterman Optimizer
+# Define a class to handle portfolio optimization tasks
 class PortfolioOptimizer:
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
+        # Initialize with user-specified parameters
         self.tickers = tickers
         self.start_date = start_date
         self.end_date = end_date
@@ -19,35 +20,33 @@ class PortfolioOptimizer:
         self.returns = None
 
     def fetch_data(self):
+        # Fetch historical price data and calculate daily returns
         data = yf.download(
             self.tickers, start=self.start_date, end=self.end_date, progress=False
         )["Adj Close"]
         if data.empty:
             raise ValueError("No data fetched. Please check the tickers and date range.")
         self.returns = data.pct_change().dropna()
-        # Ensure the returns DataFrame has the correct dimensions
-        print(f"Returns shape after fetching data: {self.returns.shape}")
 
     def denoise_returns(self):
-        # Apply PCA for denoising without reducing the number of assets
+        # Reduce noise in returns data using Principal Component Analysis (PCA)
         num_assets = len(self.returns.columns)
         n_components = min(num_assets, len(self.returns))
         pca = PCA(n_components=n_components)
         pca_returns = pca.fit_transform(self.returns)
-        # Reconstruct the returns using all components to retain original dimensions
         denoised_returns = pca.inverse_transform(pca_returns)
         self.returns = pd.DataFrame(
             denoised_returns, index=self.returns.index, columns=self.returns.columns
         )
-        print(f"Returns shape after denoising: {self.returns.shape}")
 
     def cluster_assets(self, n_clusters=3):
+        # Group similar assets into clusters using KMeans clustering
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         clusters = kmeans.fit_predict(self.returns.T)
         return clusters
 
     def portfolio_stats(self, weights):
-        # Ensure weights are numpy array and flattened correctly
+        # Calculate portfolio return, volatility, and Sharpe ratio
         weights = np.array(weights).flatten()
         num_assets = len(self.returns.columns)
         if weights.shape[0] != num_assets:
@@ -55,7 +54,6 @@ class PortfolioOptimizer:
                 f"Weights dimension {weights.shape[0]} does not match number of assets {num_assets}"
             )
 
-        # Calculate portfolio return and volatility
         mean_returns = self.returns.mean().values
         cov_matrix = self.returns.cov().values * 252  # Annualize covariance
         portfolio_return = np.dot(weights, mean_returns) * 252
@@ -64,8 +62,8 @@ class PortfolioOptimizer:
         return portfolio_return, portfolio_volatility, sharpe_ratio
 
     def min_volatility(self, target_return):
+        # Optimize portfolio to achieve minimum volatility for a target return
         num_assets = len(self.returns.columns)
-        args = ()
         constraints = (
             {"type": "eq", "fun": lambda weights: np.sum(weights) - 1},
             {
@@ -89,6 +87,7 @@ class PortfolioOptimizer:
         return result.x
 
     def generate_efficient_frontier(self, target_returns):
+        # Generate efficient frontier curve by optimizing for different target returns
         efficient_portfolios = []
         for ret in target_returns:
             try:
@@ -96,11 +95,11 @@ class PortfolioOptimizer:
                 portfolio_return, portfolio_volatility, _ = self.portfolio_stats(weights)
                 efficient_portfolios.append((portfolio_volatility, portfolio_return))
             except ValueError:
-                # Skip target returns that are not achievable
-                continue
-        return np.array(efficient_portfolios)
+                continue  # Skip target returns that are not achievable
+        return np.array(efficient_portiers)
 
     def monte_carlo_simulation(self, num_simulations=10000):
+        # Perform Monte Carlo simulations to explore possible portfolio outcomes
         num_assets = len(self.returns.columns)
         results = np.zeros((3, num_simulations))
         weights_record = []
@@ -118,17 +117,18 @@ class PortfolioOptimizer:
         return results, weights_record
 
     def backtest_portfolio(self, weights):
+        # Evaluate portfolio performance over historical data
         weighted_returns = (self.returns * weights).sum(axis=1)
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
 
-# Streamlit App
+# Streamlit App to interact with the user
 if __name__ == "__main__":
     st.title(
         "Portfolio Optimization with Denoising, Clustering, Backtesting, Efficient Frontier, and Monte Carlo Simulation"
     )
 
-    # User Inputs
+    # User inputs for tickers, dates, risk-free rate, and target return
     tickers = st.text_input(
         "Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):"
     )
@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
     if st.button("Optimize Portfolio"):
         try:
-            # Validate user inputs
+            # Validate user inputs and initialize optimizer
             if not tickers:
                 st.error("Please enter at least one ticker.")
                 st.stop()
@@ -169,10 +169,10 @@ if __name__ == "__main__":
             )
             optimizer.fetch_data()
 
-            # Denoise Returns
+            # Apply denoising to the returns data
             optimizer.denoise_returns()
 
-            # Clustering
+            # Cluster assets to identify similar behavior
             clusters = optimizer.cluster_assets(n_clusters=3)
             st.subheader("Asset Clusters")
             cluster_df = pd.DataFrame(
@@ -180,17 +180,17 @@ if __name__ == "__main__":
             )
             st.write(cluster_df)
 
-            # Efficient Frontier
+            # Generate the efficient frontier curve
             mean_returns = optimizer.returns.mean() * 252
             min_return = mean_returns.min()
             max_return = mean_returns.max()
             target_returns = np.linspace(min_return, max_return, 50)
             efficient_frontier = optimizer.generate_efficient_frontier(target_returns)
 
-            # Monte Carlo Simulations
+            # Perform Monte Carlo simulations
             monte_carlo_results, weights_record = optimizer.monte_carlo_simulation()
 
-            # Plot Efficient Frontier
+            # Plot the efficient frontier and simulation results
             st.subheader("Efficient Frontier with Monte Carlo Simulations")
             fig, ax = plt.subplots(figsize=(10, 6))
             plt.scatter(
@@ -214,7 +214,7 @@ if __name__ == "__main__":
             plt.legend()
             st.pyplot(fig)
 
-            # Optimize for Specific Target Return
+            # Optimize the portfolio for the user's specific target return
             if specific_target_return < min_return or specific_target_return > max_return:
                 st.error(
                     f"The target return must be between {min_return*100:.2f}% and {max_return*100:.2f}%."
@@ -226,7 +226,7 @@ if __name__ == "__main__":
                 optimal_weights
             )
 
-            # Display Optimal Portfolio
+            # Display the optimal portfolio allocation
             allocation = pd.DataFrame(
                 {
                     "Asset": optimizer.returns.columns,
@@ -238,13 +238,13 @@ if __name__ == "__main__":
             )
             st.write(allocation)
 
-            # Performance Metrics
+            # Show portfolio performance metrics
             st.write("Portfolio Performance Metrics:")
             st.write(f"Expected Annual Return: {portfolio_return * 100:.2f}%")
             st.write(f"Annual Volatility (Risk): {portfolio_volatility * 100:.2f}%")
             st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
-            # Backtesting
+            # Backtest the portfolio and display cumulative returns
             st.subheader("Backtest Portfolio Performance")
             cumulative_returns = optimizer.backtest_portfolio(optimal_weights)
             fig, ax = plt.subplots(figsize=(10, 6))
@@ -259,14 +259,14 @@ if __name__ == "__main__":
             plt.legend()
             st.pyplot(fig)
 
-            # Portfolio Allocation Chart
+            # Show a bar chart of the portfolio allocation
             st.subheader("Portfolio Allocation")
             fig, ax = plt.subplots()
             allocation.set_index("Asset").plot(kind="bar", y="Weight", legend=False, ax=ax)
             plt.ylabel("Weight")
             st.pyplot(fig)
 
-            # Download Portfolio Allocation
+            # Provide an option to download the portfolio allocation
             st.subheader("Download Portfolio Allocation and Metrics")
             buffer = io.StringIO()
             allocation.to_csv(buffer, index=False)
