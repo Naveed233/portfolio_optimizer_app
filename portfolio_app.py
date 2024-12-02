@@ -47,15 +47,15 @@ class PortfolioOptimizer:
         return clusters
 
     def portfolio_stats(self, weights):
-        # Ensure weights are numpy array and reshaped correctly
-        weights = np.array(weights).reshape(-1, 1)
+        # Ensure weights are numpy array and flattened correctly
+        weights = np.array(weights).flatten()
         if weights.shape[0] != len(self.returns.columns):
             raise ValueError(f"Weights dimension {weights.shape[0]} does not match number of assets {len(self.returns.columns)}")
 
-        portfolio_return = np.dot(weights.T, self.returns.mean().values.reshape(-1, 1)) * 252
+        portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
-        return portfolio_return.item(), portfolio_volatility.item(), sharpe_ratio.item()
+        return portfolio_return, portfolio_volatility, sharpe_ratio
 
     def min_volatility(self, target_return):
         num_assets = len(self.returns.columns)
@@ -193,4 +193,3 @@ if __name__ == "__main__":
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
-            
