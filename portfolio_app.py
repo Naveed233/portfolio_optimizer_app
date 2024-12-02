@@ -98,7 +98,7 @@ if __name__ == "__main__":
     tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):")
     start_date = st.date_input("Start date", value=pd.to_datetime("2018-01-01"))
     end_date = st.date_input("End date", value=pd.to_datetime("2023-12-31"))
-    risk_free_rate = st.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1) / 100
+    risk_free_rate = st.number_input("Enter the risk-free rate (in %), typically between 0.5 and 3.0 depending on the economic environment", value=2.0, step=0.1) / 100
     specific_target_return = st.slider("Select a specific target return (in %)", min_value=-5.0, max_value=30.0, value=15.0, step=0.1) / 100
 
     if st.button("Optimize Portfolio"):
