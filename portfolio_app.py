@@ -128,7 +128,7 @@ if __name__ == "__main__":
         "Portfolio Optimization with Denoising, Clustering, Backtesting, Efficient Frontier, and Monte Carlo Simulation"
     )
 
-    # User inputs for tickers, dates, risk-free rate, and target return
+    # User inputs for tickers, dates, risk-free rate
     tickers = st.text_input(
         "Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):"
     )
@@ -138,16 +138,6 @@ if __name__ == "__main__":
         st.number_input(
             "Enter the risk-free rate (in %), typically between 0.5 and 3.0 depending on the economic environment",
             value=2.0,
-            step=0.1,
-        )
-        / 100
-    )
-    specific_target_return = (
-        st.slider(
-            "Select a specific target return (in %)",
-            min_value=-5.0,
-            max_value=30.0,
-            value=15.0,
             step=0.1,
         )
         / 100
@@ -180,11 +170,46 @@ if __name__ == "__main__":
             )
             st.write(cluster_df)
 
+            # Calculate annualized returns using geometric mean
+            cumulative_returns = (1 + optimizer.returns).prod() - 1
+            num_years = (end_date - start_date).days / 365.25
+            annualized_returns = (1 + cumulative_returns) ** (1 / num_years) - 1
+
+            min_return = annualized_returns.min() * 100  # Convert to percentage
+            max_return = annualized_returns.max() * 100  # Convert to percentage
+
+            # Adjust min and max if they are equal
+            if min_return == max_return:
+                min_return -= 5
+                max_return += 5
+
+            # Define the target return slider dynamically
+            specific_target_return = (
+                st.slider(
+                    "Select a specific target return (in %)",
+                    min_value=round(min_return, 2),
+                    max_value=round(max_return, 2),
+                    value=round(min_return, 2),
+                    step=0.1,
+                )
+                / 100
+            )
+
+            # Adjust the target return validation
+            tolerance = 1e-6
+            if (
+                specific_target_return < (min_return / 100 - tolerance)
+                or specific_target_return > (max_return / 100 + tolerance)
+            ):
+                st.error(
+                    f"The target return must be between {min_return:.2f}% and {max_return:.2f}%."
+                )
+                st.stop()
+
             # Generate the efficient frontier curve
-            mean_returns = optimizer.returns.mean() * 252
-            min_return = mean_returns.min()
-            max_return = mean_returns.max()
-            target_returns = np.linspace(min_return, max_return, 50)
+            target_returns = np.linspace(
+                annualized_returns.min(), annualized_returns.max(), 50
+            )
             efficient_frontier = optimizer.generate_efficient_frontier(target_returns)
 
             # Perform Monte Carlo simulations
@@ -202,12 +227,13 @@ if __name__ == "__main__":
                 label="Monte Carlo Simulations",
             )
             plt.colorbar(label="Sharpe Ratio")
-            plt.plot(
-                efficient_frontier[:, 0],
-                efficient_frontier[:, 1],
-                label="Efficient Frontier",
-                color="red",
-            )
+            if efficient_frontier.size > 0:
+                plt.plot(
+                    efficient_frontier[:, 0],
+                    efficient_frontier[:, 1],
+                    label="Efficient Frontier",
+                    color="red",
+                )
             plt.xlabel("Risk (Standard Deviation)")
             plt.ylabel("Return")
             plt.title("Efficient Frontier and Simulations")
@@ -215,12 +241,6 @@ if __name__ == "__main__":
             st.pyplot(fig)
 
             # Optimize the portfolio for the user's specific target return
-            if specific_target_return < min_return or specific_target_return > max_return:
-                st.error(
-                    f"The target return must be between {min_return*100:.2f}% and {max_return*100:.2f}%."
-                )
-                st.stop()
-
             optimal_weights = optimizer.min_volatility(specific_target_return)
             portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(
                 optimal_weights
