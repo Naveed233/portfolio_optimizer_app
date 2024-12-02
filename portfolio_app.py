@@ -86,7 +86,7 @@ if __name__ == "__main__":
     st.title("Portfolio Optimization with Advanced Features")
 
     # User Inputs
-    tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):")
+    tickers = st.text_input("Enter stock tickers separated by commas (e.g., GOOG, WMT, WELL, LLY, LMT):")
     start_date = st.date_input("Start date", value=pd.to_datetime("2023-01-01"))
     end_date = st.date_input("End date", value=pd.to_datetime("2023-12-31"))
     risk_free_rate = st.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1) / 100
