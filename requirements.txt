@@ -6,3 +6,4 @@ scipy
 matplotlib
 seaborn
 scikit-learn
+plotly
