@@ -87,16 +87,9 @@ class PortfolioOptimizer:
         Calculate portfolio return, volatility, and Sharpe ratio.
         Ensure weights align with current tickers.
         """
-        # Ensure weights match current tickers
+        weights = np.array(weights)
         if len(weights) != len(self.tickers):
-            # If weights don't match, create a new weights array aligned with current tickers
-            full_weights = np.zeros(len(self.tickers))
-            for i, ticker in enumerate(self.tickers):
-                try:
-                    full_weights[i] = weights[self.tickers.index(ticker)]
-                except ValueError:
-                    full_weights[i] = 0
-            weights = full_weights
+            raise ValueError("Weights array length does not match the number of tickers.")
         
         # Ensure weights sum to 1
         weights = weights / np.sum(weights)
