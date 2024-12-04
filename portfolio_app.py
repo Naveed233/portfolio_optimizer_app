@@ -287,7 +287,21 @@ def main():
 
     # Optimize Button
     if st.button("📈 Optimize Portfolio"):
-        if not st.session_state['my_portfolio']:
+    if not st.session_state['my_portfolio']:
+        st.error("Please add at least one asset to your portfolio before optimization.")
+        st.stop()
+
+    if start_date >= end_date:
+        st.error("Start date must be earlier than end date.")
+        st.stop()
+
+    try:
+        clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+        optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+        # Fetch data and update tickers in case some are dropped
+        updated_tickers = optimizer.fetch_data()
+
+                if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
             st.stop()
 
@@ -336,7 +350,7 @@ def main():
             st.subheader("📊 Visual Analysis")
             # Pie Chart for Allocation
             fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 15, 'fontname': 'Calibri'})
+            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10, 'fontname': 'Calibri'})
             ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
             st.pyplot(fig1)
 
@@ -347,15 +361,15 @@ def main():
                 ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
                              ha='center', va='bottom', fontsize=15, fontname='Calibri')
             plt.xticks(rotation=0, fontsize=15, fontname='Calibri')
-            plt.title("Portfolio Performance Metrics", fontsize=15, fontname='Calibri')
-            plt.ylabel("Value (%)", fontsize=15, fontname='Calibri')
+            plt.title("Portfolio Performance Metrics", fontsize=12, fontname='Calibri')
+            plt.ylabel("Value (%)", fontsize=12, fontname='Calibri')
             st.pyplot(fig2)
 
             # Heatmap for Correlation Matrix
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
             fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 10}, xticklabels={'fontsize': 15, 'fontname': 'Calibri'}, yticklabels={'fontsize': 15, 'fontname': 'Calibri'})
+            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8}, xticklabels={'fontsize': 12, 'fontname': 'Calibri'}, yticklabels={'fontsize': 12, 'fontname': 'Calibri'})
             plt.title("Asset Correlation Heatmap", fontsize=15, fontname='Calibri')
             st.pyplot(fig3)
 
@@ -369,6 +383,11 @@ def main():
         except Exception as e:
             logger.exception("An unexpected error occurred during optimization.")
             st.error(f"An unexpected error occurred: {e}")
+    except ValueError as ve:
+        st.error(str(ve))
+    except Exception as e:
+        logger.exception("An unexpected error occurred during optimization.")
+        st.error(f"An unexpected error occurred: {e}")
         if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
             st.stop()
