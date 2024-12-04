@@ -93,7 +93,7 @@ class PortfolioOptimizer:
 
     def fetch_latest_news(self, ticker):
         # Fetch latest news for the given ticker from a reliable source (e.g., Yahoo Finance)
-        api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey=YOUR_NEWS_API_KEY'
+        api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey=c1b710a8638d4e55ab8ec4415e97388a'
         response = requests.get(api_url)
         if response.status_code == 200:
             articles = response.json().get('articles', [])
