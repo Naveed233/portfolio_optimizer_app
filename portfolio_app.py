@@ -286,8 +286,8 @@ def main():
     ) / 100
 
     # Optimize Button
-        if st.button("📈 Optimize Portfolio"):
-            if not st.session_state['my_portfolio']:
+    if st.button("📈 Optimize Portfolio"):
+        if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
     st.stop()
 
