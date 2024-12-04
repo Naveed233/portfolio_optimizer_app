@@ -121,11 +121,17 @@ if __name__ == "__main__":
 
     my_portfolio = st.session_state['my_portfolio']
 
-    add_to_portfolio = st.multiselect("Select assets to add to My Portfolio:", options=ticker_list, default=[], help="Select assets to add them to your portfolio.")
+    # Update 'My Portfolio' when assets are selected from the chosen universe
+    selected_assets = st.multiselect("Click to add assets to My Portfolio:", options=ticker_list, default=[])
+    if selected_assets:
+        my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
+        st.session_state['my_portfolio'] = my_portfolio
 
-    # Update the session state with new selections
-    if add_to_portfolio:
-        my_portfolio.extend([asset for asset in add_to_portfolio if asset not in my_portfolio])
+    # Display dropdown to add assets to My Portfolio on the right of the select assets box
+    st.write("or choose from here:")
+    add_to_portfolio = st.selectbox("Select assets to add to My Portfolio:", options=ticker_list)
+    if add_to_portfolio and add_to_portfolio not in my_portfolio:
+        my_portfolio.append(add_to_portfolio)
         st.session_state['my_portfolio'] = my_portfolio
 
     # Display the updated 'My Portfolio'
