@@ -8,3 +8,4 @@ scipy
 plotly
 requests
 textblob
+seaborn
