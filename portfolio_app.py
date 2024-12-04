@@ -136,20 +136,22 @@ if __name__ == "__main__":
             st.error("Please enter at least one ticker.")
             st.stop()
     else:
-        ticker_list = st.multiselect("News:", options=universe_options[universe_choice], default=universe_options[universe_choice])
-        for asset in ticker_list:
-            st.subheader(f"News for {asset}")
-            ticker = asset.split(' - ')[0]  # Extract the ticker symbol
-            optimizer = PortfolioOptimizer([], '', '')
-            news_articles = optimizer.fetch_latest_news(ticker)
-            if news_articles:
-                for article in news_articles:
-                    st.markdown(f"- [{article['title']}]({article['url']})")
-                    st.write(article['description'])
-                predicted_movement = optimizer.predict_movement(news_articles)
-                st.write(f"Predicted movement for {asset}: {predicted_movement}")
-            else:
-                st.write("No news available for this asset.")
+        ticker_list = st.selectbox("News:", options=universe_options[universe_choice])
+    if st.button("Get News for Selected Asset"):
+        st.subheader(f"News for {ticker_list}")
+        ticker = ticker_list.split(' - ')[0]  # Extract the ticker symbol
+        optimizer = PortfolioOptimizer([], '', '')
+        news_articles = optimizer.fetch_latest_news(ticker)
+        if news_articles:
+            for article in news_articles:
+                try:
+                    analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
+                    sentiment = "Positive" if analysis.sentiment.polarity > 0 else "Negative" if analysis.sentiment.polarity < 0 else "Neutral"
+                    st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment}")
+                except TypeError:
+                    continue
+        else:
+            st.write("No news available for this asset.")
         if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
