@@ -7,6 +7,8 @@ from scipy.optimize import minimize
 import logging
 from datetime import datetime
 import seaborn as sns
+import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -101,6 +103,51 @@ class PortfolioOptimizer:
             logger.warning(f"Portfolio optimization failed: {result.message}")
             # Return an equal weight portfolio as a fallback
             return np.ones(num_assets) / num_assets
+
+    def prepare_data_for_lstm(self):
+        """
+        Prepare data for LSTM model
+        """
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(self.returns.values)
+        
+        X, y = [], []
+        look_back = 60  # Look-back period (e.g., 60 days)
+        for i in range(look_back, len(scaled_data)):
+            X.append(scaled_data[i-look_back:i])
+            y.append(scaled_data[i])
+
+        X, y = np.array(X), np.array(y)
+        return X, y, scaler
+
+    def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
+        """
+        Train LSTM model
+        """
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
+        model.add(tf.keras.layers.LSTM(units=50))
+        model.add(tf.keras.layers.Dense(units=X_train.shape[2]))
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size)
+        return model
+
+    def predict_future_returns(self, model, scaler, steps=30):
+        """
+        Predict future returns using the LSTM model
+        """
+        last_data = self.returns[-60:].values
+        scaled_last_data = scaler.transform(last_data)
+
+        X_test = []
+        X_test.append(scaled_last_data)
+        X_test = np.array(X_test)
+        
+        predicted_scaled = model.predict(X_test)
+        predicted = scaler.inverse_transform(predicted_scaled)
+        
+        future_returns = predicted[0][:steps]
+        return future_returns
 
 # Helper Functions
 def extract_ticker(asset_string):
@@ -237,6 +284,51 @@ def main():
         except Exception as e:
             logger.exception("An unexpected error occurred during optimization.")
             st.error(f"An unexpected error occurred: {e}")
+
+    # Train LSTM Button
+    if st.button("Train LSTM Model for Future Returns Prediction"):
+        if not st.session_state['my_portfolio']:
+            st.error("Please add at least one asset to your portfolio before training the LSTM model.")
+            st.stop()
+
+        try:
+            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+            optimizer
+
+    if st.button("Train LSTM Model for Future Returns Prediction"):
+        if not st.session_state['my_portfolio']:
+            st.error("Please add at least one asset to your portfolio before training the LSTM model.")
+            st.stop()
+
+        try:
+            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+            optimizer.fetch_data()
+
+            # Prepare data for LSTM
+            X, y, scaler = optimizer.prepare_data_for_lstm()
+            model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
+
+            st.success("LSTM model trained successfully!")
+
+            # Predict future returns for the next 30 days
+            future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
+            future_dates = pd.date_range(end_date, periods=30).to_pydatetime().tolist()
+
+            # Plot future predictions
+            plt.figure(figsize=(10, 4))
+            plt.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
+            plt.xlabel("Date")
+            plt.ylabel("Predicted Returns")
+            plt.title("Future Return Predictions (Next 30 Days)")
+            plt.legend()
+            st.pyplot()
+
+        except ValueError as ve:
+            st.error(str(ve))
+        except Exception as e:
+            logger.exception("An error occurred during LSTM training or prediction.")
+            st.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
