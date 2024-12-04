@@ -309,5 +309,5 @@ if __name__ == "__main__":
             plt.ylabel("Weight")
             st.pyplot(fig)
 
-        except Exception as e:
+        except Enxception as e:
             st.error(f"An error occurred: {e}")
