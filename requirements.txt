@@ -8,3 +8,4 @@ scipy>=1.10.0
 requests>=2.28.0
 textblob>=0.17.1
 plotly>=5.11.0
+seaborn
