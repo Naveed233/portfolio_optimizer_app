@@ -8,6 +8,11 @@ from sklearn.decomposition import PCA
 from scipy.optimize import minimize
 import requests
 from textblob import TextBlob
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Black-Litterman Optimizer
 class PortfolioOptimizer:
@@ -20,13 +25,28 @@ class PortfolioOptimizer:
         self.returns = None
 
     def fetch_data(self):
-        # Fetch historical price data and calculate daily returns
+        logger.info(f"Fetching data for tickers: {self.tickers}")
         data = yf.download(
             self.tickers, start=self.start_date, end=self.end_date, progress=False
         )["Adj Close"]
+        
+        # Identify and handle missing data
+        missing_tickers = set(self.tickers) - set(data.columns)
+        if missing_tickers:
+            st.warning(f"The following tickers were not fetched and will be excluded: {', '.join(missing_tickers)}")
+            logger.warning(f"Missing tickers: {missing_tickers}")
+        
+        # Drop columns with missing data
+        data.dropna(axis=1, inplace=True)
+        
         if data.empty:
+            logger.error("No data fetched after dropping missing tickers.")
             raise ValueError("No data fetched. Please check the tickers and date range.")
+        
+        # Update the tickers list to match the fetched data
+        self.tickers = data.columns.tolist()
         self.returns = data.pct_change().dropna()
+        logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
 
     def denoise_returns(self):
         # Apply PCA for denoising
@@ -36,6 +56,11 @@ class PortfolioOptimizer:
         num_components = np.argmax(explained_variance >= 0.95) + 1
         denoised_returns = pca.inverse_transform(pca_returns[:, :num_components])
         self.returns = pd.DataFrame(denoised_returns, index=self.returns.index, columns=self.returns.columns)
+        
+        # Verify dimensions remain unchanged
+        if self.returns.shape[1] != len(self.tickers):
+            logger.error("Denoising altered the number of assets.")
+            raise ValueError("Denoising altered the number of assets.")
 
     def cluster_assets(self, n_clusters=3):
         # Group similar assets into clusters using KMeans clustering
@@ -44,6 +69,9 @@ class PortfolioOptimizer:
         return clusters
 
     def portfolio_stats(self, weights):
+        if len(weights) != len(self.returns.columns):
+            raise ValueError(f"Number of weights ({len(weights)}) does not match number of assets ({len(self.returns.columns)}).")
+        
         # Calculate portfolio return, volatility, and Sharpe ratio
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
@@ -60,6 +88,9 @@ class PortfolioOptimizer:
         init_guess = [1. / num_assets] * num_assets
         result = minimize(lambda weights: self.portfolio_stats(weights)[1],
                           init_guess, method='SLSQP', bounds=bounds, constraints=constraints)
+        if not result.success:
+            logger.error("Optimization failed.")
+            raise ValueError("Optimization failed. Please try different parameters.")
         return result.x
 
     def generate_efficient_frontier(self, target_returns):
@@ -93,12 +124,13 @@ class PortfolioOptimizer:
 
     def fetch_latest_news(self, ticker):
         # Fetch latest news for the given ticker (using NewsAPI as an example)
-        api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey=c1b710a8638d4e55ab8ec4415e97388a'
+        api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey=YOUR_NEWSAPI_KEY'
         response = requests.get(api_url)
         if response.status_code == 200:
             articles = response.json().get('articles', [])
             return articles[:3]  # Return top 3 articles
         else:
+            logger.warning(f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
             return []
 
     def predict_movement(self, news_articles):
@@ -170,7 +202,7 @@ if __name__ == "__main__":
             st.write("No asset selected for news.")
 
     # If no tickers, stop here.
-    if not ticker_list:
+    if not ticker_list and universe_choice != 'Custom':
         st.error("Please select at least one asset.")
         st.stop()
 
@@ -230,8 +262,10 @@ if __name__ == "__main__":
                 st.error("Please select at least one asset in 'My Portfolio' to optimize.")
                 st.stop()
 
+            # Extract clean tickers
+            clean_tickers = [asset.split(' - ')[0].strip() for asset in my_portfolio]
             optimizer = PortfolioOptimizer(
-                [asset.split(' - ')[0] if ' - ' in asset else asset for asset in my_portfolio],
+                clean_tickers,
                 start_date,
                 end_date,
                 risk_free_rate
@@ -278,7 +312,7 @@ if __name__ == "__main__":
             portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
 
             # Display allocation
-            allocation = pd.DataFrame({"Asset": optimizer.returns.columns, "Weight": optimal_weights.round(4)})
+            allocation = pd.DataFrame({"Asset": optimizer.tickers, "Weight": optimal_weights.round(4)})
             allocation = allocation[allocation['Weight'] > 0]
 
             st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
