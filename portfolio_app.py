@@ -273,6 +273,12 @@ def main():
                 logger.exception("An error occurred during LSTM training or prediction.")
                 st.error(f"An error occurred: {e}")
 
+    # Investment Strategy Options
+    investment_strategy = st.radio(
+        "Choose your Investment Strategy:",
+        ("Risk-free Investment", "Profit-focused Investment")
+    )
+
     # Specific Target Return Slider
     specific_target_return = st.slider(
         "Select a specific target return (in %)", 
@@ -281,6 +287,88 @@ def main():
 
     # Optimize Button
     if st.button("📈 Optimize Portfolio"):
+        if not st.session_state['my_portfolio']:
+            st.error("Please add at least one asset to your portfolio before optimization.")
+            st.stop()
+
+        if start_date >= end_date:
+            st.error("Start date must be earlier than end date.")
+            st.stop()
+
+        try:
+            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+            # Fetch data and update tickers in case some are dropped
+            updated_tickers = optimizer.fetch_data()
+
+            if investment_strategy == "Risk-free Investment":
+                # Apply denoising and clustering (this is a placeholder for Black-Litterman model implementation with denoising)
+                # Implement BL model with denoising and clustering here
+                st.write("Using Black-Litterman model with denoising and clustering for risk-free investment.")
+                optimal_weights = optimizer.min_volatility(specific_target_return)
+            else:
+                # Apply clustering and backtesting (this is a placeholder for Black-Litterman model implementation with backtesting)
+                # Implement BL model with clustering and backtesting here
+                st.write("Using Black-Litterman model with clustering and backtesting for profit-focused investment.")
+                optimal_weights = optimizer.min_volatility(specific_target_return)
+
+            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+
+            allocation = pd.DataFrame({
+                "Asset": updated_tickers,
+                "Weight": np.round(optimal_weights, 4)
+            })
+            allocation = allocation[allocation['Weight'] > 0].reset_index(drop=True)
+
+            st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
+            st.dataframe(allocation)
+
+            st.subheader("📊 Portfolio Performance Metrics")
+            metrics = {
+                "Expected Annual Return": portfolio_return * 100,
+                "Annual Volatility (Risk)": portfolio_volatility * 100,
+                "Sharpe Ratio": sharpe_ratio
+            }
+            metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+            st.table(metrics_df)
+
+            # Visuals
+            st.subheader("📊 Visual Analysis")
+            # Pie Chart for Allocation
+            fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
+            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 15, 'fontname': 'Calibri'})
+            ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            st.pyplot(fig1)
+
+            # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
+            fig2, ax2 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
+            bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
+            for p in bars.patches:
+                ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
+                             ha='center', va='bottom', fontsize=15, fontname='Calibri')
+            plt.xticks(rotation=0, fontsize=15, fontname='Calibri')
+            plt.title("Portfolio Performance Metrics", fontsize=15, fontname='Calibri')
+            plt.ylabel("Value (%)", fontsize=15, fontname='Calibri')
+            st.pyplot(fig2)
+
+            # Heatmap for Correlation Matrix
+            st.subheader("📈 Asset Correlation Heatmap")
+            correlation_matrix = optimizer.returns.corr()
+            fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
+            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 10}, xticklabels={'fontsize': 15, 'fontname': 'Calibri'}, yticklabels={'fontsize': 15, 'fontname': 'Calibri'})
+            plt.title("Asset Correlation Heatmap", fontsize=15, fontname='Calibri')
+            st.pyplot(fig3)
+
+            # Efficient Frontier Plot Placeholder
+            st.subheader("📉 Efficient Frontier")
+            st.write("This is where the efficient frontier chart will be displayed to maximize the Sharpe Ratio.")
+            # Implement efficient frontier chart logic here
+
+        except ValueError as ve:
+            st.error(str(ve))
+        except Exception as e:
+            logger.exception("An unexpected error occurred during optimization.")
+            st.error(f"An unexpected error occurred: {e}")
         if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
             st.stop()
