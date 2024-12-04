@@ -313,8 +313,8 @@ def main():
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
             fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5}, annot_kws={'fontsize': 6})
-            plt.title("Asset Correlation Heatmap", fontsize=8)
+            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 4})
+            plt.title("Asset Correlation Heatmap", fontsize=6)
             st.pyplot(fig3)
 
         except ValueError as ve:
