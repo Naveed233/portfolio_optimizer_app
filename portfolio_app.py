@@ -285,16 +285,7 @@ def main():
             logger.exception("An unexpected error occurred during optimization.")
             st.error(f"An unexpected error occurred: {e}")
 
-    # Train LSTM Button
-if st.button("Train LSTM Model for Future Returns Prediction"):
-    if not st.session_state['my_portfolio']:
-        st.error("Please add at least one asset to your portfolio before training the LSTM model.")
-        st.stop()
-
-    try:
-        clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-        optimizer
-
+   # Train LSTM Button
 if st.button("Train LSTM Model for Future Returns Prediction"):
     if not st.session_state['my_portfolio']:
         st.error("Please add at least one asset to your portfolio before training the LSTM model.")
@@ -329,6 +320,7 @@ if st.button("Train LSTM Model for Future Returns Prediction"):
     except Exception as e:
         logger.exception("An error occurred during LSTM training or prediction.")
         st.error(f"An error occurred: {e}")
-
 if __name__ == "__main__":
     main()
+
+
