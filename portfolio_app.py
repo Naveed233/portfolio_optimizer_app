@@ -103,8 +103,8 @@ class PortfolioOptimizer:
 
     def predict_movement(self, news_articles):
         # Predict prospective movement based on sentiment analysis of news articles
-        overall_sentiment = 0
-        for article in news_articles:
+                overall_sentiment = 0
+                for article in news_articles:
             analysis = TextBlob(article['title'] + '. ' + article['description'])
             overall_sentiment += analysis.sentiment.polarity
         # Determine movement direction
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ticker = ticker_list.split(' - ')[0]  # Extract the ticker symbol
         optimizer = PortfolioOptimizer([], '', '')
         news_articles = optimizer.fetch_latest_news(ticker)
-        if news_articles:
+            if news_articles:
         overall_sentiment = 0
         for article in news_articles:
             try:
@@ -153,10 +153,11 @@ if __name__ == "__main__":
                 st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
             except TypeError:
                 continue
-        overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
+                overall_arrow = overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
         st.write(f"Overall Sentiment: {overall_arrow}")
     else:
-        st.write("No news available for this asset.")f not ticker_list:
+        st.write("No news available for this asset.")
+        if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
 
