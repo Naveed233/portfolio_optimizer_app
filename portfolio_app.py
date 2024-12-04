@@ -287,9 +287,9 @@ def main():
 
     # Optimize Button
     if st.button("📈 Optimize Portfolio"):
-    if not st.session_state['my_portfolio']:
-        st.error("Please add at least one asset to your portfolio before optimization.")
-        st.stop()
+        if not st.session_state['my_portfolio']:
+            st.error("Please add at least one asset to your portfolio before optimization.")
+            st.stop()
 
     if start_date >= end_date:
         st.error("Start date must be earlier than end date.")
