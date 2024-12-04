@@ -301,7 +301,7 @@ def main():
         # Fetch data and update tickers in case some are dropped
         updated_tickers = optimizer.fetch_data()
 
-                if not st.session_state['my_portfolio']:
+        if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
             st.stop()
 
@@ -377,12 +377,11 @@ def main():
             st.subheader("📉 Efficient Frontier")
             st.write("This is where the efficient frontier chart will be displayed to maximize the Sharpe Ratio.")
             # Implement efficient frontier chart logic here
-
-        except ValueError as ve:
-            st.error(str(ve))
-        except Exception as e:
-            logger.exception("An unexpected error occurred during optimization.")
-            st.error(f"An unexpected error occurred: {e}")
+    except ValueError as ve:
+        st.error(str(ve))
+    except Exception as e:
+        logger.exception("An unexpected error occurred during optimization.")
+        st.error(f"An unexpected error occurred: {e}")
     except ValueError as ve:
         st.error(str(ve))
     except Exception as e:
