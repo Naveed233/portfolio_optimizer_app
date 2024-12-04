@@ -232,14 +232,34 @@ def main():
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
                 future_dates = pd.date_range(end_date, periods=len(future_returns)).to_pydatetime().tolist()
 
-                # Plot future predictions
-                plt.figure(figsize=(5, 2))  # Reduce the size of the plot
-                plt.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
-                plt.xlabel("Date", fontsize=6)
-                plt.ylabel("Predicted Returns", fontsize=6)
-                plt.title("Future Return Predictions (Next 30 Days)", fontsize=8)
-                plt.legend(fontsize=8)
-                st.pyplot()
+                # Plot future predictions in a popup window
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
+                ax.set_xlabel("Date", fontsize=10)
+                ax.set_ylabel("Predicted Returns", fontsize=10)
+                ax.set_title("Future Return Predictions (Next 30 Days)", fontsize=12)
+                ax.legend(fontsize=10)
+                plt.tight_layout()
+                st.pyplot(fig)
+
+                # Button to explain what the plot means
+                if st.button("Explain What This Means"):
+                    explanation = """
+                    **Explanation of Predicted Returns:**
+                    The LSTM model is used to predict future stock returns based on historical price data. 
+                    The graph displays the expected changes in returns for the next 30 days. The model captures trends and seasonality, 
+                    but it is important to understand that predictions have inherent uncertainty, especially due to market volatility. 
+                    Use this information as an additional tool to make decisions rather than a definitive future outlook.
+                    """
+                    st.markdown(explanation)
+
+                # Explanation for the LSTM prediction
+                st.markdown("""
+                    **LSTM Future Return Predictions:**
+                    The graph above shows the predicted returns for the next 30 days based on the LSTM model.
+                    The model uses past price data to forecast future trends, which can help in making informed investment decisions.
+                    Please note that these predictions are based on historical data and should be used as a guide rather than a guarantee of future performance.
+                """)
 
             except ValueError as ve:
                 st.error(str(ve))
