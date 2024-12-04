@@ -141,9 +141,9 @@ if __name__ == "__main__":
     else:
         ticker_list = st.selectbox("Select an asset for news:", options=universe_options[universe_choice])
         if st.button("Get News for Selected Asset"):
-        optimizer = PortfolioOptimizer([], '', '')
+            optimizer = PortfolioOptimizer([], '', '')
     news_articles = optimizer.fetch_latest_news(ticker)
-    if news_articles:
+        if news_articles:
         overall_sentiment = 0
         for article in news_articles:
             try:
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     else:
         st.write("No news available for this asset.")
     if not ticker_list:
-            st.error("Please select at least one asset.")
+                st.error("Please select at least one asset.")
             st.stop()
 
     # Display selected assets in 'My Portfolio'
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
             if selected_assets:
-        my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
+            my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
         st.session_state['my_portfolio'] = my_portfolio
 
     # Display dropdown to add assets to My Portfolio on the right of the select assets box
