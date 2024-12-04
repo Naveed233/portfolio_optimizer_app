@@ -54,11 +54,9 @@ class PortfolioOptimizer:
             logger.error("No data fetched after dropping missing tickers.")
             raise ValueError("No data fetched. Please check the tickers and date range.")
 
-        # Update tickers to match the columns in the fetched data
-        self.tickers = list(data.columns)
+        self.tickers = data.columns.tolist()
         self.returns = data.pct_change().dropna()
         logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
-        return self.tickers
 
     def denoise_returns(self):
         """
@@ -85,41 +83,28 @@ class PortfolioOptimizer:
     def portfolio_stats(self, weights):
         """
         Calculate portfolio return, volatility, and Sharpe ratio.
-        Ensure weights align with current tickers.
         """
-        # Ensure weights match current tickers
-        if len(weights) != len(self.tickers):
-            # If weights don't match, create a new weights array aligned with current tickers
-            full_weights = np.zeros(len(self.tickers))
-            for i, ticker in enumerate(self.tickers):
-                try:
-                    full_weights[i] = weights[self.tickers.index(ticker)]
-                except ValueError:
-                    full_weights[i] = 0
-            weights = full_weights
-        
-        # Ensure weights sum to 1
-        weights = weights / np.sum(weights)
+        if len(weights) != len(self.returns.columns):
+            raise ValueError("Number of weights does not match number of assets.")
         
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
         return portfolio_return, portfolio_volatility, sharpe_ratio
 
-    def min_volatility(self, target_return, max_weight=0.3):
+    def min_volatility(self, target_return):
         """
-        Optimize portfolio with added weight constraints
+        Optimize portfolio to minimize volatility for a given target return.
         """
         num_assets = len(self.returns.columns)
         constraints = (
             {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},
-            {'type': 'eq', 'fun': lambda weights: self.portfolio_stats(weights)[0] - target_return},
-            # Add maximum weight constraint for each asset
-            {'type': 'ineq', 'fun': lambda weights: max_weight - np.max(weights)}
+            {'type': 'eq', 'fun': lambda weights: self.portfolio_stats(weights)[0] - target_return}
         )
-        bounds = tuple((0, max_weight) for _ in range(num_assets))
+        bounds = tuple((0, 1) for _ in range(num_assets))
         init_guess = [1. / num_assets] * num_assets
-    
+
+        logger.info(f"Optimizing portfolio for target return: {target_return:.4f}")
         result = minimize(
             lambda weights: self.portfolio_stats(weights)[1],
             init_guess,
@@ -127,26 +112,18 @@ class PortfolioOptimizer:
             bounds=bounds,
             constraints=constraints
         )
-    
-        return result.x if result.success else None
+
+        if not result.success:
+            logger.error("Optimization failed.")
+            raise ValueError("Optimization failed. Please try different parameters.")
+        
+        logger.info("Optimization successful.")
+        return result.x
 
     def backtest_portfolio(self, weights):
         """
         Evaluate portfolio performance over historical data.
         """
-        # Ensure weights match current tickers
-        if len(weights) != len(self.tickers):
-            full_weights = np.zeros(len(self.tickers))
-            for i, ticker in enumerate(self.tickers):
-                try:
-                    full_weights[i] = weights[self.tickers.index(ticker)]
-                except ValueError:
-                    full_weights[i] = 0
-            weights = full_weights
-        
-        # Ensure weights sum to 1
-        weights = weights / np.sum(weights)
-        
         weighted_returns = (self.returns * weights).sum(axis=1)
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
@@ -267,71 +244,3 @@ def main():
     # Risk-Free Rate Input
     risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
 
-    # Strategy Selection
-    strategy = st.radio("Select Your Strategy:", ("Risk-Free Safe Approach", "Profit-Aggressive Approach"))
-
-    # Optimize Button
-    if st.button("📈 Optimize Portfolio"):
-        if not st.session_state['my_portfolio']:
-            st.error("Please add at least one asset to your portfolio before optimization.")
-            st.stop()
-
-        if start_date >= end_date:
-            st.error("Start date must be earlier than end date.")
-            st.stop()
-
-        try:
-            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-            # Fetch data and update tickers in case some are dropped
-            updated_tickers = optimizer.fetch_data()
-
-            if strategy == "Risk-Free Safe Approach":
-                optimizer.denoise_returns()
-
-            specific_target_return = st.slider(
-                "Select a specific target return (in %)", 
-                min_value=-5.0, max_value=20.0, value=5.0, step=0.1
-            ) / 100
-
-            optimal_weights = optimizer.min_volatility(specific_target_return)
-            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
-
-            allocation = pd.DataFrame({
-                "Asset": updated_tickers,
-                "Weight": np.round(optimal_weights, 4)
-            })
-            allocation = allocation[allocation['Weight'] > 0].reset_index(drop=True)
-
-            st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
-            st.dataframe(allocation)
-
-            st.subheader("📊 Portfolio Performance Metrics")
-            metrics = {
-                "Expected Annual Return": f"{portfolio_return * 100:.2f}%",
-                "Annual Volatility (Risk)": f"{portfolio_volatility * 100:.2f}%",
-                "Sharpe Ratio": f"{sharpe_ratio:.2f}"
-            }
-            metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-            st.table(metrics_df)
-
-            # Display Backtest if Profit-Aggressive Strategy
-            if strategy == "Profit-Aggressive Approach":
-                st.subheader("🔍 Backtest Portfolio Performance")
-                backtest_cumulative_returns = optimizer.backtest_portfolio(optimal_weights)
-                fig, ax = plt.subplots(figsize=(10, 6))
-                backtest_cumulative_returns.plot(ax=ax, color='green')
-                plt.xlabel("Date")
-                plt.ylabel("Cumulative Return")
-                plt.title("Portfolio Backtesting Performance")
-                plt.tight_layout()
-                st.pyplot(fig)
-
-        except ValueError as ve:
-            st.error(str(ve))
-        except Exception as e:
-            logger.exception("An unexpected error occurred during optimization.")
-            st.error(f"An unexpected error occurred: {e}")
-
-if __name__ == "__main__":
-    main()
