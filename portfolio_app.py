@@ -107,9 +107,9 @@ class PortfolioOptimizer:
         return portfolio_return, portfolio_volatility, sharpe_ratio
 
     def min_volatility(self, target_return, max_weight=0.3):
-    """
-    Optimize portfolio with added weight constraints
-    """
+        """
+        Optimize portfolio with added weight constraints
+        """
         num_assets = len(self.returns.columns)
         constraints = (
             {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},
