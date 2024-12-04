@@ -286,20 +286,13 @@ def main():
     ) / 100
 
     # Optimize Button
-    if st.button("📈 Optimize Portfolio"):
-        if not st.session_state['my_portfolio']:
-            st.error("Please add at least one asset to your portfolio before optimization.")
-    st.stop()
+        if st.button("📈 Optimize Portfolio"):   st.stop()
 
-    if start_date >= end_date:
-            st.error("Start date must be earlier than end date.")
-    st.stop()
-
-    try:
-            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-    optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-    # Fetch data and update tickers in case some are dropped
-    updated_tickers = optimizer.fetch_data()
+        try:
+                    clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+            # Fetch data and update tickers in case some are dropped
+            updated_tickers = optimizer.fetch_data()
 
         if not st.session_state['my_portfolio']:
             st.error("Please add at least one asset to your portfolio before optimization.")
@@ -374,9 +367,9 @@ def main():
             st.write("This is where the efficient frontier chart will be displayed to maximize the Sharpe Ratio.")
             # Implement efficient frontier chart logic here
     
-    except ValueError as ve:
+        except ValueError as ve:
         st.error(str(ve))
-    except Exception as e:
+        except Exception as e:
         logger.exception("An unexpected error occurred during optimization.")
         st.error(f"An unexpected error occurred: {e}")
         if not st.session_state['my_portfolio']:
