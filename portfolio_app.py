@@ -293,7 +293,7 @@ def main():
             st.subheader("📊 Visual Analysis")
             # Pie Chart for Allocation
             fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90), textprops={'fontsize': 6}
+            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 6})
             ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
             st.pyplot(fig1)
 
@@ -312,7 +312,7 @@ def main():
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
             fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5}), annot_kws={'fontsize': 6}
+            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5}, annot_kws={'fontsize': 6})
             plt.title("Asset Correlation Heatmap", fontsize=8)
             st.pyplot(fig3)
 
