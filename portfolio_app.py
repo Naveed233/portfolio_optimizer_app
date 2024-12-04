@@ -108,8 +108,8 @@ class PortfolioOptimizer:
             try:
                 analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
                 overall_sentiment += analysis.sentiment.polarity
-            except TypeError:
-                continue
+                except TypeError:
+        continue
         # Determine movement direction
         if overall_sentiment > 0:
             return 'Up'
@@ -144,8 +144,8 @@ if __name__ == "__main__":
                 optimizer = PortfolioOptimizer([], '', '')
     news_articles = optimizer.fetch_latest_news(ticker)
             if news_articles:
-        overall_sentiment = 0
-        for article in news_articles:
+    overall_sentiment = 0
+    for article in news_articles:
             try:
                 analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
                 sentiment = analysis.sentiment.polarity
@@ -154,8 +154,8 @@ if __name__ == "__main__":
                 st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
             except TypeError:
                 continue
-        overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
-            st.write(f"Overall Sentiment: {overall_arrow}")
+            overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
+    st.write(f"Overall Sentiment: {overall_arrow}")
     else:
         st.write("No news available for this asset.")
     if not ticker_list:
