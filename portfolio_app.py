@@ -146,7 +146,8 @@ class PortfolioOptimizer:
         predicted_scaled = model.predict(X_test)
         predicted = scaler.inverse_transform(predicted_scaled)
         
-        future_returns = predicted[0][:steps]
+        # Ensure the length matches the number of future steps requested
+        future_returns = predicted[0][:steps] if len(predicted[0]) >= steps else predicted[0]
         return future_returns
 
 # Helper Functions
@@ -229,7 +230,7 @@ def main():
 
                 # Predict future returns for the next 30 days
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-                future_dates = pd.date_range(end_date, periods=30).to_pydatetime().tolist()
+                future_dates = pd.date_range(end_date, periods=len(future_returns)).to_pydatetime().tolist()
 
                 # Plot future predictions
                 plt.figure(figsize=(5, 2))  # Reduce the size of the plot
