@@ -171,8 +171,7 @@ if __name__ == "__main__":
     my_portfolio = st.session_state['my_portfolio']
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
-    selected_assets = st.multiselect("Click to add assets to My Portfolio:", options=universe_options[universe_choice], default=[])
-    for asset in selected_assets:
+    selected_assets =     for asset in selected_assets:
         if asset not in my_portfolio:
             # Display news and predicted movement for the selected asset
             st.subheader(f"News and Views for {asset}")
@@ -192,8 +191,7 @@ if __name__ == "__main__":
         st.session_state['my_portfolio'] = my_portfolio
 
     # Display dropdown to add assets to My Portfolio on the right of the select assets box
-    st.write("or choose from here:")
-    add_to_portfolio = st.selectbox("Select assets to add to My Portfolio:", options=universe_options[universe_choice])
+        add_to_portfolio = st.selectbox("Select assets to add to My Portfolio:", options=universe_options[universe_choice])
     if add_to_portfolio and add_to_portfolio not in my_portfolio:
         my_portfolio.append(add_to_portfolio)
         st.session_state['my_portfolio'] = my_portfolio
