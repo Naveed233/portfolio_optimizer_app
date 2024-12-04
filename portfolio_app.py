@@ -114,7 +114,7 @@ class PortfolioOptimizer:
         
         X, y = [], []
         look_back = 60  # Look-back period (e.g., 60 days)
-        for i in range(look_back, len(scaled_data)):
+        for i in range(look_back, len(scaled_data), 3):  # Use data every 3 days
             X.append(scaled_data[i-look_back:i])
             y.append(scaled_data[i])
 
@@ -212,155 +212,43 @@ def main():
         start_date = st.date_input("Start Date", value=datetime(2024, 1, 1), max_value=datetime.today())
     with col2:
         end_date = st.date_input("End Date", value=datetime.today(), max_value=datetime.today())
-
-    # Risk-Free Rate Input
-    risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
-
     with col3:
-        # Train LSTM Button placed next to Optimize button
-        if st.button("Train LSTM Model for Future Returns Prediction"):
-            if not st.session_state['my_portfolio']:
-                st.error("Please add at least one asset to your portfolio before training the LSTM model.")
-                st.stop()
+        # Risk-Free Rate Input
+        risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
 
-            try:
-                clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-                optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-                optimizer.fetch_data()
-
-                # Prepare data for LSTM
-                X, y, scaler = optimizer.prepare_data_for_lstm()
-                model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
-
-                st.success("LSTM model trained successfully!")
-
-                # Predict future returns for the next 30 days
-                future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-                future_dates = pd.date_range(end_date, periods=len(future_returns)).to_pydatetime().tolist()
-
-                # Plot future predictions in a popup window
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
-                ax.set_xlabel("Date", fontsize=10)
-                ax.set_ylabel("Predicted Returns", fontsize=10)
-                ax.set_title("Future Return Predictions (Next 30 Days)", fontsize=12)
-                ax.legend(fontsize=10)
-                plt.tight_layout()
-                st.pyplot(fig)
-
-                # Button to explain what the plot means
-                if st.button("Explain What This Means"):
-                    explanation = """
-                    **Explanation of Predicted Returns:**
-                    The LSTM model is used to predict future stock returns based on historical price data. 
-                    The graph displays the expected changes in returns for the next 30 days. The model captures trends and seasonality, 
-                    but it is important to understand that predictions have inherent uncertainty, especially due to market volatility. 
-                    Use this information as an additional tool to make decisions rather than a definitive future outlook.
-                    """
-                    st.markdown(explanation)
-
-                # Explanation for the LSTM prediction
-                st.markdown("""
-                    **LSTM Future Return Predictions:**
-                    The graph above shows the predicted returns for the next 30 days based on the LSTM model.
-                    The model uses past price data to forecast future trends, which can help in making informed investment decisions.
-                    Please note that these predictions are based on historical data and should be used as a guide rather than a guarantee of future performance.
-                """)
-
-            except ValueError as ve:
-                st.error(str(ve))
-            except Exception as e:
-                logger.exception("An error occurred during LSTM training or prediction.")
-                st.error(f"An error occurred: {e}")
-
-    # Investment Strategy Options
-    investment_strategy = st.radio(
-        "Choose your Investment Strategy:",
-        ("Risk-free Investment", "Profit-focused Investment")
-    )
-
-    # Specific Target Return Slider
-    specific_target_return = st.slider(
-        "Select a specific target return (in %)", 
-        min_value=-5.0, max_value=20.0, value=5.0, step=0.1
-    ) / 100
-
-    # Optimize Button
-    if st.button("📈 Optimize Portfolio"):
-
+    # Train LSTM Button under Start Date
+    if st.button("Train LSTM Model for Future Returns Prediction"):
         if not st.session_state['my_portfolio']:
-            st.error("Please add at least one asset to your portfolio before optimization.")
-            st.stop()
-
-        if start_date >= end_date:
-            st.error("Start date must be earlier than end date.")
+            st.error("Please add at least one asset to your portfolio before training the LSTM model.")
             st.stop()
 
         try:
             clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
             optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-            # Fetch data and update tickers in case some are dropped
-            updated_tickers = optimizer.fetch_data()
+            optimizer.fetch_data()
 
-            if investment_strategy == "Risk-free Investment":
-                # Apply denoising and clustering (this is a placeholder for Black-Litterman model implementation with denoising)
-                optimal_weights = optimizer.min_volatility(specific_target_return)
-            else:
-                # Apply clustering and backtesting (this is a placeholder for Black-Litterman model implementation with backtesting)
-                optimal_weights = optimizer.min_volatility(specific_target_return)
+            # Prepare data for LSTM
+            X, y, scaler = optimizer.prepare_data_for_lstm()
+            model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
 
-            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+            st.success("LSTM model trained successfully!")
 
-            allocation = pd.DataFrame({
-                "Asset": updated_tickers,
-                "Weight": np.round(optimal_weights, 4)
-            })
-            allocation = allocation[allocation['Weight'] > 0].reset_index(drop=True)
+            # Predict future returns for the next 30 days
+            future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
+            future_dates = pd.date_range(end_date, periods=len(future_returns)).to_pydatetime().tolist()
 
-            st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
-            st.dataframe(allocation)
+            # Plot future predictions in a popup window
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
+            ax.set_xlabel("Date", fontsize=10)
+            ax.set_ylabel("Predicted Returns", fontsize=10)
+            ax.set_title("Future Return Predictions (Next 30 Days)", fontsize=12)
+            ax.legend(fontsize=10)
+            plt.tight_layout()
+            st.pyplot(fig)
 
-            st.subheader("📊 Portfolio Performance Metrics")
-            metrics = {
-                "Expected Annual Return": portfolio_return * 100,
-                "Annual Volatility (Risk)": portfolio_volatility * 100,
-                "Sharpe Ratio": sharpe_ratio
-            }
-            metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-            st.table(metrics_df)
-
-            # Visuals
-            st.subheader("📊 Visual Analysis")
-            # Pie Chart for Allocation
-            fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10, 'fontname': 'Calibri'})
-            ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-            st.pyplot(fig1)
-
-            # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
-            fig2, ax2 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
-            for p in bars.patches:
-                ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
-                             ha='center', va='bottom', fontsize=10)
-            plt.xticks(rotation=0, fontsize=10)
-            plt.title("Portfolio Performance Metrics", fontsize=12)
-            plt.ylabel("Value (%)", fontsize=10)
-            st.pyplot(fig2)
-
-            # Heatmap for Correlation Matrix
-            st.subheader("📈 Asset Correlation Heatmap")
-            correlation_matrix = optimizer.returns.corr()
-            fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
-            plt.title("Asset Correlation Heatmap", fontsize=10)
-            st.pyplot(fig3)
-
-        except ValueError as ve:
-            st.error(str(ve))
-        except Exception as e:
-            logger.exception("An unexpected error occurred during optimization.")
-            st.error(f"An unexpected error occurred: {e}")
-
-if __name__ == "__main__":
-    main()
+            # Button to explain what the plot means
+            if st.button("More Information on LSTM"):
+                explanation = """
+                **Explanation of Predicted Returns:**
+                The LSTM model is used to
