@@ -139,28 +139,25 @@ if __name__ == "__main__":
             st.error("Please enter at least one ticker.")
             st.stop()
     else:
-        ticker_list = st.selectbox("News:", options=universe_options[universe_choice])
+        ticker_list = st.selectbox("Select an asset for news:", options=universe_options[universe_choice])
     if st.button("Get News for Selected Asset"):
-        st.subheader(f"News for {ticker_list}")
-        ticker = ticker_list.split(' - ')[0]  # Extract the ticker symbol
-        optimizer = PortfolioOptimizer([], '', '')
-        news_articles = optimizer.fetch_latest_news(ticker)
-        if news_articles:
-            overall_sentiment = 0
-            for article in news_articles:
-                try:
-                    analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
-                    sentiment = analysis.sentiment.polarity
-                    sentiment_arrow = "🟢⬆️" if sentiment > 0 else "🔴⬇️" if sentiment < 0 else "⚪"
-                    overall_sentiment += sentiment
-                    st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
-                except TypeError:
-                    continue
-            overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
-            st.write(f"Overall Sentiment: {overall_arrow}")
-        else:
-            st.write("No news available for this asset.")
-        if not ticker_list:
+    optimizer = PortfolioOptimizer([], '', '')
+    news_articles = optimizer.fetch_latest_news(ticker)
+    if news_articles:
+        overall_sentiment = 0
+        for article in news_articles:
+            try:
+                analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
+                sentiment = analysis.sentiment.polarity
+                sentiment_arrow = "🟢⬆️" if sentiment > 0 else "🔴⬇️" if sentiment < 0 else "⚪"
+                overall_sentiment += sentiment
+                st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
+            except TypeError:
+                continue
+        overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
+        st.write(f"Overall Sentiment: {overall_arrow}")
+    else:
+        st.write("No news available for this asset.")        if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
 
@@ -171,33 +168,12 @@ if __name__ == "__main__":
     my_portfolio = st.session_state['my_portfolio']
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
-    selected_assets = []
-    # Iterate over the selected assets and add to My Portfolio
-    for asset in selected_assets:
-        if asset not in my_portfolio:
-            # Display news and predicted movement for the selected asset
-            st.subheader(f"News and Views for {asset}")
-            ticker = asset.split(' - ')[0]  # Extract the ticker symbol
-            optimizer = PortfolioOptimizer([], '', '')
-            news_articles = optimizer.fetch_latest_news(ticker)
-            if news_articles:
-                for article in news_articles:
-                    st.write(f"- [{article['title']}]({article['url']})")
-                    st.write(article['description'])
-                predicted_movement = optimizer.predict_movement(news_articles)
-                st.write(f"Predicted movement for {asset}: {predicted_movement}")
-            else:
-                st.write("No news available for this asset.")
-    if selected_assets:
+        if selected_assets:
         my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
         st.session_state['my_portfolio'] = my_portfolio
 
     # Display dropdown to add assets to My Portfolio on the right of the select assets box
-        add_to_portfolio = st.selectbox("Select an asset to add to My Portfolio:", options=universe_options[universe_choice])
-    if add_to_portfolio and add_to_portfolio not in my_portfolio:
-        my_portfolio.append(add_to_portfolio)
-        st.session_state['my_portfolio'] = my_portfolio
-
+        
     # Display the updated 'My Portfolio'
     st.multiselect("My Portfolio:", options=my_portfolio, default=my_portfolio, help="These are the assets you have selected for your portfolio.")
 
