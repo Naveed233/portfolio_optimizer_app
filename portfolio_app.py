@@ -136,6 +136,13 @@ class PortfolioOptimizer:
             # Return an equal weight portfolio as a fallback
             return np.ones(num_assets) / num_assets
 
+# Helper Functions
+def extract_ticker(asset_string):
+    """
+    Extract ticker symbol from asset string.
+    """
+    return asset_string.split(' - ')[0].strip() if ' - ' in asset_string else asset_string.strip()
+
 # Streamlit App
 st.title("📈 Portfolio Optimization with Advanced Features")
 
