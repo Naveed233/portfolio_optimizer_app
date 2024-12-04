@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 from sklearn.cluster import KMeans
+from scipy.spatial.distance import cdist
 from sklearn.decomposition import PCA
-import plotly.express as px
 
 # Black-Litterman Optimizer
 class PortfolioOptimizer:
@@ -83,7 +83,7 @@ class PortfolioOptimizer:
 
 # Streamlit App
 if __name__ == "__main__":
-    st.title("Portfolio Optimization with Advanced Features")
+    st.title("Portfolio Optimization with Denoising, Clustering, Backtesting, Efficient Frontier, and Monte Carlo Simulation")
 
     # User Inputs
     tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):")
@@ -92,28 +92,19 @@ if __name__ == "__main__":
     risk_free_rate = st.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1) / 100
     specific_target_return = st.slider("Select a specific target return (in %)", min_value=-5.0, max_value=30.0, value=15.0, step=0.1) / 100
 
-    # Allow uploading custom datasets
-    uploaded_file = st.file_uploader("Upload your dataset (CSV with columns as asset returns)", type="csv")
-
     if st.button("Optimize Portfolio"):
         try:
             # Validate user inputs
-            if not tickers and not uploaded_file:
-                st.error("Please enter tickers or upload a dataset.")
+            if not tickers:
+                st.error("Please enter at least one ticker.")
                 st.stop()
             if start_date >= end_date:
                 st.error("Start date must be earlier than end date.")
                 st.stop()
 
-            if uploaded_file:
-                user_data = pd.read_csv(uploaded_file, index_col=0)
-                optimizer = PortfolioOptimizer([], start_date, end_date, risk_free_rate)
-                optimizer.returns = user_data
-                st.write("Custom data loaded successfully!")
-            else:
-                ticker_list = [ticker.strip() for ticker in tickers.split(",")]
-                optimizer = PortfolioOptimizer(ticker_list, start_date, end_date, risk_free_rate)
-                optimizer.fetch_data()
+            ticker_list = [ticker.strip() for ticker in tickers.split(",")]
+            optimizer = PortfolioOptimizer(ticker_list, start_date, end_date, risk_free_rate)
+            optimizer.fetch_data()
 
             # Denoise Returns
             optimizer.denoise_returns()
@@ -131,22 +122,21 @@ if __name__ == "__main__":
             # Monte Carlo Simulations
             monte_carlo_results, weights_record = optimizer.monte_carlo_simulation()
 
+            # Plot Efficient Frontier
+            st.subheader("Efficient Frontier with Monte Carlo Simulations")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plt.scatter(monte_carlo_results[0, :], monte_carlo_results[1, :], c=monte_carlo_results[2, :], cmap='viridis', alpha=0.5, label='Monte Carlo Simulations')
+            plt.colorbar(label='Sharpe Ratio')
+            plt.plot(efficient_frontier[:, 0], efficient_frontier[:, 1], label='Efficient Frontier', color='red')
+            plt.xlabel('Risk (Standard Deviation)')
+            plt.ylabel('Return')
+            plt.title('Efficient Frontier and Simulations')
+            plt.legend()
+            st.pyplot(fig)
+
             # Optimize for Specific Target Return
             optimal_weights = optimizer.min_volatility(specific_target_return)
             portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
-
-            # Plot Efficient Frontier with Portfolio
-            st.subheader("Efficient Frontier with Monte Carlo Simulations")
-            fig = px.scatter(
-                x=monte_carlo_results[0, :],
-                y=monte_carlo_results[1, :],
-                color=monte_carlo_results[2, :],
-                labels={'x': 'Risk', 'y': 'Return', 'color': 'Sharpe Ratio'},
-                title="Monte Carlo Simulations and Efficient Frontier",
-                template="plotly_dark"
-            )
-            fig.add_scatter(x=[portfolio_volatility], y=[portfolio_return], mode='markers', marker=dict(size=10, color='red'), name='Optimal Portfolio')
-            st.plotly_chart(fig)
 
             # Display Optimal Portfolio
             allocation = pd.DataFrame({
@@ -156,20 +146,11 @@ if __name__ == "__main__":
             st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
             st.write(allocation)
 
-            # Risk Contribution
-            st.subheader("Risk Contribution Analysis")
-            def risk_contribution(weights, cov_matrix):
-                total_portfolio_risk = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-                marginal_risk = np.dot(cov_matrix, weights) / total_portfolio_risk
-                contribution = weights * marginal_risk
-                return contribution
-
-            risk_contributions = risk_contribution(optimal_weights, optimizer.returns.cov() * 252)
-            risk_df = pd.DataFrame({
-                'Asset': optimizer.returns.columns,
-                'Risk Contribution': risk_contributions
-            })
-            st.write(risk_df)
+            # Performance Metrics
+            st.write("Portfolio Performance Metrics:")
+            st.write(f"Expected Annual Return: {portfolio_return * 100:.2f}%")
+            st.write(f"Annual Volatility (Risk): {portfolio_volatility * 100:.2f}%")
+            st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
             # Backtesting
             st.subheader("Backtest Portfolio Performance")
@@ -181,6 +162,9 @@ if __name__ == "__main__":
             plt.title('Portfolio Backtesting Performance')
             plt.legend()
             st.pyplot(fig)
+
+            # Portfolio Allocation Chart
+            st.bar_chart(allocation.set_index('Asset')['Weight'])
 
             # Download Portfolio Allocation
             st.subheader("Download Portfolio Allocation and Metrics")
