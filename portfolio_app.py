@@ -128,11 +128,12 @@ class PortfolioOptimizer:
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
 
-    def fetch_latest_news(self, ticker, api_key):
+    def fetch_latest_news(self, ticker):
         """
         Fetch latest news for the given ticker using NewsAPI.
         """
         logger.info(f"Fetching news for ticker: {ticker}")
+        api_key = 'c1b710a8638d4e55ab8ec4415e97388a'
         api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey={api_key}&sortBy=publishedAt&language=en&pageSize=5'
         response = requests.get(api_url)
         if response.status_code == 200:
@@ -172,10 +173,6 @@ def extract_ticker(asset_string):
 def main():
     st.title("📈 Portfolio Optimization with Advanced Features")
 
-    # Sidebar for API Key input
-    st.sidebar.header("Configuration")
-    news_api_key = st.sidebar.text_input("Enter your NewsAPI Key:", type="password")
-
     # Define preset universes
     universe_options = {
         'Tech Giants': ['AAPL - Apple', 'MSFT - Microsoft', 'GOOGL - Alphabet', 'AMZN - Amazon', 'META - Meta Platforms', 'TSLA - Tesla', 'NVDA - NVIDIA', 'ADBE - Adobe', 'INTC - Intel', 'CSCO - Cisco'],
@@ -214,13 +211,11 @@ def main():
 
     # Button to fetch and display news sentiments
     if st.button("🔍 Get News Sentiment for Portfolio"):
-        if not news_api_key:
-            st.warning("Please enter your NewsAPI key in the sidebar to fetch news.")
-        elif not st.session_state['my_portfolio']:
+        if not st.session_state['my_portfolio']:
             st.warning("Please add at least one asset to your portfolio.")
         else:
             for ticker in st.session_state['my_portfolio']:
-                news_articles = PortfolioOptimizer([], '', '').fetch_latest_news(ticker, news_api_key)
+                news_articles = PortfolioOptimizer([], '', '').fetch_latest_news(ticker)
                 if news_articles:
                     sentiment = PortfolioOptimizer([], '', '').predict_movement(news_articles)
                     sentiment_icon = "🟢⬆️" if sentiment == 'Up' else "🔴⬇️" if sentiment == 'Down' else "⚪"
