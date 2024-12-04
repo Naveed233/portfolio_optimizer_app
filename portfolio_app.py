@@ -232,8 +232,15 @@ if __name__ == "__main__":
                 st.error("Start date must be earlier than end date.")
                 st.stop()
 
+            if len(my_portfolio) == 0:
+                st.error("Please select at least one asset in 'My Portfolio' to optimize.")
+                st.stop()
             optimizer = PortfolioOptimizer(my_portfolio, start_date, end_date, risk_free_rate)
-            optimizer.fetch_data()
+            try:
+                optimizer.fetch_data()
+            except ValueError as e:
+                st.error(str(e))
+                st.stop()
 
             # Apply selected strategy
             if strategy == "Risk-Free Safe Approach":
