@@ -106,7 +106,7 @@ class PortfolioOptimizer:
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
         return portfolio_return, portfolio_volatility, sharpe_ratio
 
-   def min_volatility(self, target_return, max_weight=0.3):
+  def min_volatility(self, target_return, max_weight=0.3):
     """
     Optimize portfolio with added weight constraints
     """
