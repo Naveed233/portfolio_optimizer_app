@@ -54,9 +54,11 @@ class PortfolioOptimizer:
             logger.error("No data fetched after dropping missing tickers.")
             raise ValueError("No data fetched. Please check the tickers and date range.")
 
-        self.tickers = data.columns.tolist()
+        # Update tickers to match the columns in the fetched data
+        self.tickers = list(data.columns)
         self.returns = data.pct_change().dropna()
         logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
+        return self.tickers
 
     def denoise_returns(self):
         """
@@ -83,9 +85,21 @@ class PortfolioOptimizer:
     def portfolio_stats(self, weights):
         """
         Calculate portfolio return, volatility, and Sharpe ratio.
+        Ensure weights align with current tickers.
         """
-        if len(weights) != len(self.returns.columns):
-            raise ValueError("Number of weights does not match number of assets.")
+        # Ensure weights match current tickers
+        if len(weights) != len(self.tickers):
+            # If weights don't match, create a new weights array aligned with current tickers
+            full_weights = np.zeros(len(self.tickers))
+            for i, ticker in enumerate(self.tickers):
+                try:
+                    full_weights[i] = weights[self.tickers.index(ticker)]
+                except ValueError:
+                    full_weights[i] = 0
+            weights = full_weights
+        
+        # Ensure weights sum to 1
+        weights = weights / np.sum(weights)
         
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
@@ -124,6 +138,19 @@ class PortfolioOptimizer:
         """
         Evaluate portfolio performance over historical data.
         """
+        # Ensure weights match current tickers
+        if len(weights) != len(self.tickers):
+            full_weights = np.zeros(len(self.tickers))
+            for i, ticker in enumerate(self.tickers):
+                try:
+                    full_weights[i] = weights[self.tickers.index(ticker)]
+                except ValueError:
+                    full_weights[i] = 0
+            weights = full_weights
+        
+        # Ensure weights sum to 1
+        weights = weights / np.sum(weights)
+        
         weighted_returns = (self.returns * weights).sum(axis=1)
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
@@ -260,7 +287,8 @@ def main():
         try:
             clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
             optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-            optimizer.fetch_data()
+            # Fetch data and update tickers in case some are dropped
+            updated_tickers = optimizer.fetch_data()
 
             if strategy == "Risk-Free Safe Approach":
                 optimizer.denoise_returns()
@@ -274,7 +302,7 @@ def main():
             portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
 
             allocation = pd.DataFrame({
-                "Asset": optimizer.tickers,
+                "Asset": updated_tickers,
                 "Weight": np.round(optimal_weights, 4)
             })
             allocation = allocation[allocation['Weight'] > 0].reset_index(drop=True)
