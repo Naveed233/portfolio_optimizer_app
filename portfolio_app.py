@@ -205,6 +205,10 @@ def main():
         start_date = st.date_input("Start Date", value=datetime(2024, 1, 1), max_value=datetime.today())
     with col2:
         end_date = st.date_input("End Date", value=datetime.today(), max_value=datetime.today())
+
+    # Risk-Free Rate Input
+    risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
+
     with col3:
         # Train LSTM Button placed next to Optimize button
         if st.button("Train LSTM Model for Future Returns Prediction"):
@@ -230,9 +234,9 @@ def main():
                 # Plot future predictions
                 plt.figure(figsize=(5, 2))  # Reduce the size of the plot
                 plt.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
-                plt.xlabel("Date", fontsize=8)
-                plt.ylabel("Predicted Returns", fontsize=8)
-                plt.title("Future Return Predictions (Next 30 Days)", fontsize=10)
+                plt.xlabel("Date", fontsize=6)
+                plt.ylabel("Predicted Returns", fontsize=6)
+                plt.title("Future Return Predictions (Next 30 Days)", fontsize=8)
                 plt.legend(fontsize=8)
                 st.pyplot()
 
@@ -241,9 +245,6 @@ def main():
             except Exception as e:
                 logger.exception("An error occurred during LSTM training or prediction.")
                 st.error(f"An error occurred: {e}")
-
-    # Risk-Free Rate Input
-    risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
 
     # Specific Target Return Slider
     specific_target_return = st.slider(
@@ -292,7 +293,7 @@ def main():
             st.subheader("📊 Visual Analysis")
             # Pie Chart for Allocation
             fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90)
+            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90), textprops={'fontsize': 6}
             ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
             st.pyplot(fig1)
 
@@ -301,18 +302,18 @@ def main():
             bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
             for p in bars.patches:
                 ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
-                             ha='center', va='bottom', fontsize=8)
-            plt.xticks(rotation=0, fontsize=8)
-            plt.title("Portfolio Performance Metrics", fontsize=10)
-            plt.ylabel("Value (%)", fontsize=8)
+                             ha='center', va='bottom', fontsize=6)
+            plt.xticks(rotation=0, fontsize=6)
+            plt.title("Portfolio Performance Metrics", fontsize=8)
+            plt.ylabel("Value (%)", fontsize=6)
             st.pyplot(fig2)
 
             # Heatmap for Correlation Matrix
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
             fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5})
-            plt.title("Asset Correlation Heatmap", fontsize=10)
+            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5}), annot_kws={'fontsize': 6}
+            plt.title("Asset Correlation Heatmap", fontsize=8)
             st.pyplot(fig3)
 
         except ValueError as ve:
