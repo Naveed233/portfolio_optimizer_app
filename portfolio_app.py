@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 import logging
 from datetime import datetime
+import seaborn as sns
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -197,12 +198,36 @@ def main():
 
             st.subheader("📊 Portfolio Performance Metrics")
             metrics = {
-                "Expected Annual Return": f"{portfolio_return * 100:.2f}%",
-                "Annual Volatility (Risk)": f"{portfolio_volatility * 100:.2f}%",
-                "Sharpe Ratio": f"{sharpe_ratio:.2f}"
+                "Expected Annual Return": portfolio_return * 100,
+                "Annual Volatility (Risk)": portfolio_volatility * 100,
+                "Sharpe Ratio": sharpe_ratio
             }
             metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
             st.table(metrics_df)
+
+            # Visuals
+            st.subheader("📊 Visual Analysis")
+            # Pie Chart for Allocation
+            fig1, ax1 = plt.subplots()
+            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90)
+            ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            st.pyplot(fig1)
+
+            # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
+            fig2, ax2 = plt.subplots()
+            metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
+            plt.xticks(rotation=0)
+            plt.title("Portfolio Performance Metrics")
+            plt.ylabel("Value (%)")
+            st.pyplot(fig2)
+
+            # Heatmap for Correlation Matrix
+            st.subheader("📈 Asset Correlation Heatmap")
+            correlation_matrix = optimizer.returns.corr()
+            fig3, ax3 = plt.subplots(figsize=(10, 8))
+            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3)
+            plt.title("Asset Correlation Heatmap")
+            st.pyplot(fig3)
 
         except ValueError as ve:
             st.error(str(ve))
