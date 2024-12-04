@@ -141,8 +141,8 @@ if __name__ == "__main__":
     else:
         ticker_list = st.selectbox("Select an asset for news:", options=universe_options[universe_choice])
     if st.button("Get News for Selected Asset"):
-    optimizer = PortfolioOptimizer([], '', '')
-    news_articles = optimizer.fetch_latest_news(ticker)
+        optimizer = PortfolioOptimizer([], '', '')
+        news_articles = optimizer.fetch_latest_news(ticker)
     if news_articles:
         overall_sentiment = 0
         for article in news_articles:
