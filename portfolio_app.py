@@ -106,10 +106,10 @@ class PortfolioOptimizer:
         overall_sentiment = 0
         for article in news_articles:
             try:
-            analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
+                analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
                 overall_sentiment += analysis.sentiment.polarity
-                except TypeError:
-            continue
+            except TypeError:
+                continue
         # Determine movement direction
         if overall_sentiment > 0:
             return 'Up'
@@ -141,11 +141,11 @@ if __name__ == "__main__":
     else:
         ticker_list = st.selectbox("Select an asset for news:", options=universe_options[universe_choice])
     if st.button("Get News for Selected Asset"):
-                optimizer = PortfolioOptimizer([], '', '')
-        news_articles = optimizer.fetch_latest_news(ticker)
-            if news_articles:
-    overall_sentiment = 0
-    for article in news_articles:
+    optimizer = PortfolioOptimizer([], '', '')
+    news_articles = optimizer.fetch_latest_news(ticker)
+    if news_articles:
+        overall_sentiment = 0
+        for article in news_articles:
             try:
                 analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
                 sentiment = analysis.sentiment.polarity
@@ -154,13 +154,13 @@ if __name__ == "__main__":
                 st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
             except TypeError:
                 continue
-            overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
+                    overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
         st.write(f"Overall Sentiment: {overall_arrow}")
     else:
         st.write("No news available for this asset.")
     if not ticker_list:
-                    st.error("Please select at least one asset.")
-            st.stop()
+    st.error("Please select at least one asset.")
+    st.stop()
 
     # Display selected assets in 'My Portfolio'
     if 'my_portfolio' not in st.session_state:
@@ -170,8 +170,8 @@ if __name__ == "__main__":
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
             if selected_assets:
-        my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
-        st.session_state['my_portfolio'] = my_portfolio
+    my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
+    st.session_state['my_portfolio'] = my_portfolio
 
     # Display dropdown to add assets to My Portfolio on the right of the select assets box
         
@@ -286,5 +286,5 @@ if __name__ == "__main__":
             plt.ylabel("Weight")
             st.pyplot(fig)
 
-        except Enxception as e:
+        except Exception as e:
             st.error(f"An error occurred: {e}")
