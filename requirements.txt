@@ -2,8 +2,9 @@ streamlit
 yfinance
 numpy
 pandas
-scipy
 matplotlib
-seaborn
 scikit-learn
+scipy
 plotly
+requests
+textblob
