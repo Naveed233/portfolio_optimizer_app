@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 import seaborn as sns
 import tensorflow as tf
+import random
 from sklearn.preprocessing import MinMaxScaler
 
 # Configure logging
@@ -121,6 +122,11 @@ class PortfolioOptimizer:
         return X, y, scaler
 
     def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
+        # Set random seed for reproducibility
+        seed_value = 42
+        np.random.seed(seed_value)
+        tf.random.set_seed(seed_value)
+        random.seed(seed_value)
         """
         Train LSTM model
         """
