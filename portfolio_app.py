@@ -200,11 +200,47 @@ def main():
     st.header("🔧 Optimize Your Portfolio")
 
     # Date Inputs
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        start_date = st.date_input("Start Date", value=datetime(2018, 1, 1), max_value=datetime.today())
+        start_date = st.date_input("Start Date", value=datetime(2024, 1, 1), max_value=datetime.today())
     with col2:
         end_date = st.date_input("End Date", value=datetime.today(), max_value=datetime.today())
+    with col3:
+        # Train LSTM Button placed next to Optimize button
+        if st.button("Train LSTM Model for Future Returns Prediction"):
+            if not st.session_state['my_portfolio']:
+                st.error("Please add at least one asset to your portfolio before training the LSTM model.")
+                st.stop()
+
+            try:
+                clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
+                optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+                optimizer.fetch_data()
+
+                # Prepare data for LSTM
+                X, y, scaler = optimizer.prepare_data_for_lstm()
+                model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
+
+                st.success("LSTM model trained successfully!")
+
+                # Predict future returns for the next 30 days
+                future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
+                future_dates = pd.date_range(end_date, periods=30).to_pydatetime().tolist()
+
+                # Plot future predictions
+                plt.figure(figsize=(5, 2))  # Reduce the size of the plot
+                plt.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
+                plt.xlabel("Date", fontsize=8)
+                plt.ylabel("Predicted Returns", fontsize=8)
+                plt.title("Future Return Predictions (Next 30 Days)", fontsize=10)
+                plt.legend(fontsize=8)
+                st.pyplot()
+
+            except ValueError as ve:
+                st.error(str(ve))
+            except Exception as e:
+                logger.exception("An error occurred during LSTM training or prediction.")
+                st.error(f"An error occurred: {e}")
 
     # Risk-Free Rate Input
     risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
@@ -255,28 +291,28 @@ def main():
             # Visuals
             st.subheader("📊 Visual Analysis")
             # Pie Chart for Allocation
-            fig1, ax1 = plt.subplots(figsize=(5, 3))
+            fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
             ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90)
             ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
             st.pyplot(fig1)
 
             # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
-            fig2, ax2 = plt.subplots(figsize=(5, 3))
+            fig2, ax2 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
             bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
             for p in bars.patches:
                 ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
-                             ha='center', va='bottom')
-            plt.xticks(rotation=0)
-            plt.title("Portfolio Performance Metrics")
-            plt.ylabel("Value (%)")
+                             ha='center', va='bottom', fontsize=8)
+            plt.xticks(rotation=0, fontsize=8)
+            plt.title("Portfolio Performance Metrics", fontsize=10)
+            plt.ylabel("Value (%)", fontsize=8)
             st.pyplot(fig2)
 
             # Heatmap for Correlation Matrix
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
-            fig3, ax3 = plt.subplots(figsize=(5, 4))
-            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3)
-            plt.title("Asset Correlation Heatmap")
+            fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
+            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3, cbar_kws={'shrink': 0.5})
+            plt.title("Asset Correlation Heatmap", fontsize=10)
             st.pyplot(fig3)
 
         except ValueError as ve:
@@ -285,42 +321,5 @@ def main():
             logger.exception("An unexpected error occurred during optimization.")
             st.error(f"An unexpected error occurred: {e}")
 
-   # Train LSTM Button
-if st.button("Train LSTM Model for Future Returns Prediction"):
-    if not st.session_state['my_portfolio']:
-        st.error("Please add at least one asset to your portfolio before training the LSTM model.")
-        st.stop()
-
-    try:
-        clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-        optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-        optimizer.fetch_data()
-
-        # Prepare data for LSTM
-        X, y, scaler = optimizer.prepare_data_for_lstm()
-        model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
-
-        st.success("LSTM model trained successfully!")
-
-        # Predict future returns for the next 30 days
-        future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-        future_dates = pd.date_range(end_date, periods=30).to_pydatetime().tolist()
-
-        # Plot future predictions
-        plt.figure(figsize=(10, 4))
-        plt.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
-        plt.xlabel("Date")
-        plt.ylabel("Predicted Returns")
-        plt.title("Future Return Predictions (Next 30 Days)")
-        plt.legend()
-        st.pyplot()
-
-    except ValueError as ve:
-        st.error(str(ve))
-    except Exception as e:
-        logger.exception("An error occurred during LSTM training or prediction.")
-        st.error(f"An error occurred: {e}")
 if __name__ == "__main__":
     main()
-
-
