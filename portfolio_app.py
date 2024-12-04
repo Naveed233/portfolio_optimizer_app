@@ -106,43 +106,35 @@ class PortfolioOptimizer:
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
         return portfolio_return, portfolio_volatility, sharpe_ratio
 
-  def min_volatility(self, target_return, max_weight=0.3):
-    """
-    Optimize portfolio with added weight constraints
-    """
-    num_assets = len(self.returns.columns)
-    constraints = (
-        {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},
-        {'type': 'eq', 'fun': lambda weights: self.portfolio_stats(weights)[0] - target_return},
-        # Add maximum weight constraint for each asset
-        {'type': 'ineq', 'fun': lambda weights: max_weight - np.max(weights)}
-    )
-    bounds = tuple((0, max_weight) for _ in range(num_assets))
-    init_guess = [1. / num_assets] * num_assets
+    def min_volatility(self, target_return, max_weight=0.3):
+        """
+        Optimize portfolio with added weight constraints
+        """
+        num_assets = len(self.returns.columns)
+        constraints = (
+            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},
+            {'type': 'eq', 'fun': lambda weights: self.portfolio_stats(weights)[0] - target_return},
+            # Add maximum weight constraint for each asset
+            {'type': 'ineq', 'fun': lambda weights: max_weight - np.max(weights)}
+        )
+        bounds = tuple((0, max_weight) for _ in range(num_assets))
+        init_guess = [1. / num_assets] * num_assets
 
-    result = minimize(
-        lambda weights: self.portfolio_stats(weights)[1],
-        init_guess,
-        method='SLSQP',
-        bounds=bounds,
-        constraints=constraints
-    )
+        result = minimize(
+            lambda weights: self.portfolio_stats(weights)[1],
+            init_guess,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints
+        )
 
-    if result.success:
-        return result.x
-    else:
-        # Log the optimization failure
-        logger.warning(f"Portfolio optimization failed: {result.message}")
-        # Return an equal weight portfolio as a fallback
-        return np.ones(num_assets) / num_assets
-
-# In the main optimization section, add error handling
-try:
-    optimal_weights = optimizer.min_volatility(specific_target_return)
-    portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
-except Exception as e:
-    st.error(f"Optimization failed. Please adjust your parameters: {str(e)}")
-    st.stop()
+        if result.success:
+            return result.x
+        else:
+            # Log the optimization failure
+            logger.warning(f"Portfolio optimization failed: {result.message}")
+            # Return an equal weight portfolio as a fallback
+            return np.ones(num_assets) / num_assets
 
     def backtest_portfolio(self, weights):
         """
