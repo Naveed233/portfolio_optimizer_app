@@ -103,10 +103,13 @@ class PortfolioOptimizer:
 
     def predict_movement(self, news_articles):
         # Predict prospective movement based on sentiment analysis of news articles
-                overall_sentiment = 0
-                for article in news_articles:
-            analysis = TextBlob(article['title'] + '. ' + article['description'])
-            overall_sentiment += analysis.sentiment.polarity
+        overall_sentiment = 0
+        for article in news_articles:
+            try:
+                analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
+                overall_sentiment += analysis.sentiment.polarity
+            except TypeError:
+                continue
         # Determine movement direction
         if overall_sentiment > 0:
             return 'Up'
@@ -142,21 +145,21 @@ if __name__ == "__main__":
         ticker = ticker_list.split(' - ')[0]  # Extract the ticker symbol
         optimizer = PortfolioOptimizer([], '', '')
         news_articles = optimizer.fetch_latest_news(ticker)
-            if news_articles:
-        overall_sentiment = 0
-        for article in news_articles:
-            try:
-                analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
-                sentiment = analysis.sentiment.polarity
-                sentiment_arrow = "🟢⬆️" if sentiment > 0 else "🔴⬇️" if sentiment < 0 else "⚪"
-                overall_sentiment += sentiment
-                st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
-            except TypeError:
-                continue
-                overall_arrow = overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
-        st.write(f"Overall Sentiment: {overall_arrow}")
-    else:
-        st.write("No news available for this asset.")
+        if news_articles:
+            overall_sentiment = 0
+            for article in news_articles:
+                try:
+                    analysis = TextBlob(article['title'] + '. ' + (article.get('description') or ''))
+                    sentiment = analysis.sentiment.polarity
+                    sentiment_arrow = "🟢⬆️" if sentiment > 0 else "🔴⬇️" if sentiment < 0 else "⚪"
+                    overall_sentiment += sentiment
+                    st.markdown(f"- [{article['title']}]({article['url']}) - Sentiment: {sentiment_arrow}")
+                except TypeError:
+                    continue
+            overall_arrow = "🟢⬆️" if overall_sentiment > 0 else "🔴⬇️"
+            st.write(f"Overall Sentiment: {overall_arrow}")
+        else:
+            st.write("No news available for this asset.")
         if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
@@ -168,7 +171,7 @@ if __name__ == "__main__":
     my_portfolio = st.session_state['my_portfolio']
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
-    selected_assets = st.multiselect("Click to add assets to My Portfolio:", options=ticker_list, default=[])
+    selected_assets = st.multiselect("Click to add assets to My Portfolio:", options=universe_options[universe_choice], default=[])
     for asset in selected_assets:
         if asset not in my_portfolio:
             # Display news and predicted movement for the selected asset
@@ -190,7 +193,7 @@ if __name__ == "__main__":
 
     # Display dropdown to add assets to My Portfolio on the right of the select assets box
     st.write("or choose from here:")
-    add_to_portfolio = st.selectbox("Select assets to add to My Portfolio:", options=ticker_list)
+    add_to_portfolio = st.selectbox("Select assets to add to My Portfolio:", options=universe_options[universe_choice])
     if add_to_portfolio and add_to_portfolio not in my_portfolio:
         my_portfolio.append(add_to_portfolio)
         st.session_state['my_portfolio'] = my_portfolio
