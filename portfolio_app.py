@@ -2,17 +2,17 @@ import streamlit as st
 import yfinance as yf
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-import seaborn as sns
 import io
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from scipy.optimize import minimize
 import plotly.express as px
 
 # Black-Litterman Optimizer
 class PortfolioOptimizer:
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
+        # Initialize with user-specified parameters
         self.tickers = tickers
         self.start_date = start_date
         self.end_date = end_date
@@ -20,7 +20,12 @@ class PortfolioOptimizer:
         self.returns = None
 
     def fetch_data(self):
-        data = yf.download(self.tickers, start=self.start_date, end=self.end_date, progress=False)["Adj Close"]
+        # Fetch historical price data and calculate daily returns
+        data = yf.download(
+            self.tickers, start=self.start_date, end=self.end_date, progress=False
+        )["Adj Close"]
+        if data.empty:
+            raise ValueError("No data fetched. Please check the tickers and date range.")
         self.returns = data.pct_change().dropna()
 
     def denoise_returns(self):
@@ -33,11 +38,13 @@ class PortfolioOptimizer:
         self.returns = pd.DataFrame(denoised_returns, index=self.returns.index, columns=self.returns.columns)
 
     def cluster_assets(self, n_clusters=3):
+        # Group similar assets into clusters using KMeans clustering
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         clusters = kmeans.fit_predict(self.returns.T)
         return clusters
 
     def portfolio_stats(self, weights):
+        # Calculate portfolio return, volatility, and Sharpe ratio
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
@@ -77,121 +84,153 @@ class PortfolioOptimizer:
         return results, weights_record
 
     def backtest_portfolio(self, weights):
+        # Evaluate portfolio performance over historical data
         weighted_returns = (self.returns * weights).sum(axis=1)
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
 
-# Streamlit App
+# Streamlit App to interact with the user
 if __name__ == "__main__":
     st.title("Portfolio Optimization with Advanced Features")
 
     # User Inputs
-    tickers = st.text_input("Enter stock tickers separated by commas (e.g., GOOG, WMT, WELL, LLY, LMT):")
-    start_date = st.date_input("Start date", value=pd.to_datetime("2023-01-01"))
-    end_date = st.date_input("End date", value=pd.to_datetime("2023-12-31"))
-    risk_free_rate = st.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1) / 100
-    specific_target_return = st.slider("Select a specific target return (in %)", min_value=-5.0, max_value=30.0, value=15.0, step=0.1) / 100
+    universe_options = {
+        'Tech Giants': ['AAPL - Apple', 'MSFT - Microsoft', 'GOOGL - Alphabet', 'AMZN - Amazon', 'META - Meta Platforms', 'TSLA - Tesla', 'NVDA - NVIDIA', 'ADBE - Adobe', 'INTC - Intel', 'CSCO - Cisco'],
+        'Finance Leaders': ['JPM - JPMorgan Chase', 'BAC - Bank of America', 'WFC - Wells Fargo', 'C - Citigroup', 'GS - Goldman Sachs', 'MS - Morgan Stanley', 'AXP - American Express', 'BLK - BlackRock', 'SCHW - Charles Schwab', 'USB - U.S. Bancorp'],
+        'Healthcare Majors': ['JNJ - Johnson & Johnson', 'PFE - Pfizer', 'UNH - UnitedHealth', 'MRK - Merck', 'ABBV - AbbVie', 'ABT - Abbott', 'TMO - Thermo Fisher Scientific', 'MDT - Medtronic', 'DHR - Danaher', 'BMY - Bristol-Myers Squibb'],
+        'Custom': []
+    }
 
-    # Allow uploading custom datasets
-    uploaded_file = st.file_uploader("Upload your dataset (CSV with columns as asset returns)", type="csv")
+    universe_choice = st.selectbox("Select an asset universe:", options=list(universe_options.keys()), index=0)
 
-    if st.button("Optimize Portfolio"):
+    if universe_choice == 'Custom':
+        custom_tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):")
+        ticker_list = [ticker.strip() for ticker in custom_tickers.split(",") if ticker.strip()]
+        if not ticker_list:
+            st.error("Please enter at least one ticker.")
+            st.stop()
+    else:
+        ticker_list = st.multiselect("Select assets from the chosen universe:", options=universe_options[universe_choice], default=universe_options[universe_choice])
+        if not ticker_list:
+            st.error("Please select at least one asset.")
+            st.stop()
+
+    # Display selected assets in 'My Portfolio'
+    if 'my_portfolio' not in st.session_state:
+        st.session_state['my_portfolio'] = []
+
+    my_portfolio = st.session_state['my_portfolio']
+
+    add_to_portfolio = st.multiselect("Select assets to add to My Portfolio:", options=ticker_list, default=[], help="Select assets to add them to your portfolio.")
+
+    # Update the session state with new selections
+    if add_to_portfolio:
+        my_portfolio.extend([asset for asset in add_to_portfolio if asset not in my_portfolio])
+        st.session_state['my_portfolio'] = my_portfolio
+
+    # Display the updated 'My Portfolio'
+    st.multiselect("My Portfolio:", options=my_portfolio, default=my_portfolio, help="These are the assets you have selected for your portfolio.")
+
+    # Add recommend assets button under 'My Portfolio'
+    recommend_button = st.button("Recommend Assets")
+
+    if recommend_button:
+        st.write("Based on your selected assets, a balanced and diversified portfolio could include a mix of assets from different sectors to minimize risk while maximizing potential gains.")
+        if universe_choice == 'Tech Giants':
+            st.write("Consider adding assets from Finance Leaders or Healthcare Majors to diversify your tech-heavy portfolio.")
+        elif universe_choice == 'Finance Leaders':
+            st.write("Consider adding assets from Tech Giants or Healthcare Majors to balance financial sector exposure.")
+        elif universe_choice == 'Healthcare Majors':
+            st.write("Consider adding assets from Tech Giants or Finance Leaders to create a more well-rounded portfolio.")
+
+    start_date = st.date_input("Start date", value=pd.to_datetime("2018-01-01"), max_value=pd.to_datetime("today"))
+    end_date = st.date_input("End date", value=pd.to_datetime("2023-12-31"), max_value=pd.to_datetime("today"))
+    risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
+
+    # Add info button for why only historical data can be used
+    if st.button("Why can I only use historical data?"):
+        st.info("Portfolio optimizers use historical data as a proxy to estimate key inputs like expected returns, risks (volatility), and correlations between assets. This approach is based on the assumption that past performance and relationships can provide insights into future behavior.")
+
+    strategy = st.radio("Select your strategy:", ("Risk-Free Safe Approach", "Profit-Aggressive Approach"))
+
+    optimize_button = st.button("Optimize Portfolio")
+
+    if optimize_button:
         try:
-            # Validate user inputs
-            if not tickers and not uploaded_file:
-                st.error("Please enter tickers or upload a dataset.")
-                st.stop()
+            # Validate dates
             if start_date >= end_date:
                 st.error("Start date must be earlier than end date.")
                 st.stop()
 
-            if uploaded_file:
-                user_data = pd.read_csv(uploaded_file, index_col=0)
-                optimizer = PortfolioOptimizer([], start_date, end_date, risk_free_rate)
-                optimizer.returns = user_data
-                st.write("Custom data loaded successfully!")
-            else:
-                ticker_list = [ticker.strip() for ticker in tickers.split(",")]
-                optimizer = PortfolioOptimizer(ticker_list, start_date, end_date, risk_free_rate)
-                optimizer.fetch_data()
+            optimizer = PortfolioOptimizer(my_portfolio, start_date, end_date, risk_free_rate)
+            optimizer.fetch_data()
 
-            # Denoise Returns
-            optimizer.denoise_returns()
+            # Apply selected strategy
+            if strategy == "Risk-Free Safe Approach":
+                optimizer.denoise_returns()
+                clusters = optimizer.cluster_assets()
+            elif strategy == "Profit-Aggressive Approach":
+                clusters = optimizer.cluster_assets()
 
-            # Clustering
-            clusters = optimizer.cluster_assets(n_clusters=3)
-            st.subheader("Asset Clusters")
-            cluster_df = pd.DataFrame({'Asset': optimizer.returns.columns, 'Cluster': clusters})
-            st.write(cluster_df)
+            # Calculate annualized returns using geometric mean
+            cumulative_returns = (1 + optimizer.returns).prod() - 1
+            num_years = (end_date - start_date).days / 365.25
+            annualized_returns = (1 + cumulative_returns) ** (1 / num_years) - 1
 
-            # Efficient Frontier
-            target_returns = np.linspace(optimizer.returns.mean().min() * 252, optimizer.returns.mean().max() * 252, 50)
-            efficient_frontier = optimizer.generate_efficient_frontier(target_returns)
+            min_return = annualized_returns.min() * 100  # Convert to percentage
+            max_return = annualized_returns.max() * 100  # Convert to percentage
 
-            # Monte Carlo Simulations
-            monte_carlo_results, weights_record = optimizer.monte_carlo_simulation()
+            # Adjust min and max if they are equal
+            if min_return == max_return:
+                min_return -= 5
+                max_return += 5
 
-            # Optimize for Specific Target Return
+            # Define the target return slider dynamically
+            specific_target_return = st.slider("Select a specific target return (in %)", min_value=round(min_return, 2), max_value=round(max_return, 2), value=round(min_return, 2), step=0.1) / 100
+
+            # Adjust the target return validation
+            tolerance = 1e-6
+            if specific_target_return < (min_return / 100 - tolerance) or specific_target_return > (max_return / 100 + tolerance):
+                st.error(f"The target return must be between {min_return:.2f}% and {max_return:.2f}%.")
+                st.stop()
+
+            # Optimize the portfolio for the user's specific target return
             optimal_weights = optimizer.min_volatility(specific_target_return)
+
+            # Get portfolio stats
             portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
 
-            # Plot Efficient Frontier with Portfolio
-            st.subheader("Efficient Frontier with Monte Carlo Simulations")
-            fig = px.scatter(
-                x=monte_carlo_results[0, :],
-                y=monte_carlo_results[1, :],
-                color=monte_carlo_results[2, :],
-                labels={'x': 'Risk', 'y': 'Return', 'color': 'Sharpe Ratio'},
-                title="Monte Carlo Simulations and Efficient Frontier",
-                template="plotly_dark"
-            )
-            fig.add_scatter(x=[portfolio_volatility], y=[portfolio_return], mode='markers', marker=dict(size=10, color='red'), name='Optimal Portfolio')
-            st.plotly_chart(fig)
+            # Display the optimal portfolio allocation
+            allocation = pd.DataFrame({"Asset": optimizer.returns.columns, "Weight": optimal_weights.round(4)})
+            allocation = allocation[allocation['Weight'] > 0]
 
-            # Display Optimal Portfolio
-            allocation = pd.DataFrame({
-                'Asset': optimizer.returns.columns,
-                'Weight': optimal_weights
-            })
             st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
             st.write(allocation)
 
-            # Risk Contribution
-            st.subheader("Risk Contribution Analysis")
-            def risk_contribution(weights, cov_matrix):
-                total_portfolio_risk = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-                marginal_risk = np.dot(cov_matrix, weights) / total_portfolio_risk
-                contribution = weights * marginal_risk
-                return contribution
+            # Show portfolio performance metrics
+            st.write("Portfolio Performance Metrics:")
+            st.write(f"Expected Annual Return: {portfolio_return * 100:.2f}%")
+            st.write(f"Annual Volatility (Risk): {portfolio_volatility * 100:.2f}%")
+            st.write(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
-            risk_contributions = risk_contribution(optimal_weights, optimizer.returns.cov() * 252)
-            risk_df = pd.DataFrame({
-                'Asset': optimizer.returns.columns,
-                'Risk Contribution': risk_contributions
-            })
-            st.write(risk_df)
+            # Backtest the portfolio and display cumulative returns if aggressive strategy is chosen
+            if strategy == "Profit-Aggressive Approach":
+                st.subheader("Backtest Portfolio Performance")
+                cumulative_returns = optimizer.backtest_portfolio(optimal_weights)
+                fig, ax = plt.subplots(figsize=(10, 6))
+                plt.plot(cumulative_returns.index, cumulative_returns.values, label="Portfolio Cumulative Returns")
+                plt.xlabel("Date")
+                plt.ylabel("Cumulative Return")
+                plt.title("Portfolio Backtesting Performance")
+                plt.legend()
+                st.pyplot(fig)
 
-            # Backtesting
-            st.subheader("Backtest Portfolio Performance")
-            cumulative_returns = optimizer.backtest_portfolio(optimal_weights)
-            fig, ax = plt.subplots(figsize=(10, 6))
-            plt.plot(cumulative_returns.index, cumulative_returns.values, label='Portfolio Cumulative Returns')
-            plt.xlabel('Date')
-            plt.ylabel('Cumulative Return')
-            plt.title('Portfolio Backtesting Performance')
-            plt.legend()
+            # Show a bar chart of the portfolio allocation
+            st.subheader("Portfolio Allocation")
+            fig, ax = plt.subplots()
+            allocation.set_index("Asset").plot(kind="bar", y="Weight", legend=False, ax=ax)
+            plt.ylabel("Weight")
             st.pyplot(fig)
-
-            # Download Portfolio Allocation
-            st.subheader("Download Portfolio Allocation and Metrics")
-            buffer = io.StringIO()
-            allocation.to_csv(buffer, index=False)
-            st.download_button(
-                label="Download Portfolio Allocation (CSV)",
-                data=buffer.getvalue(),
-                file_name="portfolio_allocation.csv",
-                mime="text/csv"
-            )
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
