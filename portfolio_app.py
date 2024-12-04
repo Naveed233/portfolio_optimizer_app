@@ -8,6 +8,8 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from scipy.optimize import minimize
 import plotly.express as px
+import requests
+from textblob import TextBlob
 
 # Black-Litterman Optimizer
 class PortfolioOptimizer:
@@ -89,6 +91,30 @@ class PortfolioOptimizer:
         cumulative_returns = (1 + weighted_returns).cumprod()
         return cumulative_returns
 
+    def fetch_latest_news(self, ticker):
+        # Fetch latest news for the given ticker from a reliable source (e.g., Yahoo Finance)
+        api_url = f'https://newsapi.org/v2/everything?q={ticker}&apiKey=YOUR_NEWS_API_KEY'
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            articles = response.json().get('articles', [])
+            return articles[:3]  # Return top 3 articles
+        else:
+            return []
+
+    def predict_movement(self, news_articles):
+        # Predict prospective movement based on sentiment analysis of news articles
+        overall_sentiment = 0
+        for article in news_articles:
+            analysis = TextBlob(article['title'] + '. ' + article['description'])
+            overall_sentiment += analysis.sentiment.polarity
+        # Determine movement direction
+        if overall_sentiment > 0:
+            return 'Up'
+        elif overall_sentiment < 0:
+            return 'Down'
+        else:
+            return 'Neutral'
+
 # Streamlit App to interact with the user
 if __name__ == "__main__":
     st.title("Portfolio Optimization with Advanced Features")
@@ -110,7 +136,7 @@ if __name__ == "__main__":
             st.error("Please enter at least one ticker.")
             st.stop()
     else:
-        ticker_list = st.multiselect("Select assets from the chosen universe:", options=universe_options[universe_choice], default=universe_options[universe_choice])
+        ticker_list = st.multiselect("Click to get news and views about an asset:", options=universe_options[universe_choice], default=universe_options[universe_choice])
         if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
@@ -123,6 +149,21 @@ if __name__ == "__main__":
 
     # Update 'My Portfolio' when assets are selected from the chosen universe
     selected_assets = st.multiselect("Click to add assets to My Portfolio:", options=ticker_list, default=[])
+    for asset in selected_assets:
+        if asset not in my_portfolio:
+            # Display news and predicted movement for the selected asset
+            st.subheader(f"News and Views for {asset}")
+            ticker = asset.split(' - ')[0]  # Extract the ticker symbol
+            optimizer = PortfolioOptimizer([], '', '')
+            news_articles = optimizer.fetch_latest_news(ticker)
+            if news_articles:
+                for article in news_articles:
+                    st.write(f"- [{article['title']}]({article['url']})")
+                    st.write(article['description'])
+                predicted_movement = optimizer.predict_movement(news_articles)
+                st.write(f"Predicted movement for {asset}: {predicted_movement}")
+            else:
+                st.write("No news available for this asset.")
     if selected_assets:
         my_portfolio.extend([asset for asset in selected_assets if asset not in my_portfolio])
         st.session_state['my_portfolio'] = my_portfolio
