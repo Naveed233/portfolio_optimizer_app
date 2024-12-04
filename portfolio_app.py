@@ -208,14 +208,17 @@ def main():
             # Visuals
             st.subheader("📊 Visual Analysis")
             # Pie Chart for Allocation
-            fig1, ax1 = plt.subplots()
+            fig1, ax1 = plt.subplots(figsize=(5, 3))
             ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90)
             ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
             st.pyplot(fig1)
 
             # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
-            fig2, ax2 = plt.subplots()
-            metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
+            fig2, ax2 = plt.subplots(figsize=(5, 3))
+            bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
+            for p in bars.patches:
+                ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
+                             ha='center', va='bottom')
             plt.xticks(rotation=0)
             plt.title("Portfolio Performance Metrics")
             plt.ylabel("Value (%)")
@@ -224,7 +227,7 @@ def main():
             # Heatmap for Correlation Matrix
             st.subheader("📈 Asset Correlation Heatmap")
             correlation_matrix = optimizer.returns.corr()
-            fig3, ax3 = plt.subplots(figsize=(10, 8))
+            fig3, ax3 = plt.subplots(figsize=(5, 4))
             sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', linewidths=0.5, ax=ax3)
             plt.title("Asset Correlation Heatmap")
             st.pyplot(fig3)
