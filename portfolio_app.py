@@ -136,7 +136,20 @@ if __name__ == "__main__":
             st.error("Please enter at least one ticker.")
             st.stop()
     else:
-        ticker_list = st.multiselect("Click to get news and views about an asset:", options=universe_options[universe_choice], default=universe_options[universe_choice])
+        ticker_list = st.multiselect("News:", options=universe_options[universe_choice], default=universe_options[universe_choice])
+        for asset in ticker_list:
+            st.subheader(f"News for {asset}")
+            ticker = asset.split(' - ')[0]  # Extract the ticker symbol
+            optimizer = PortfolioOptimizer([], '', '')
+            news_articles = optimizer.fetch_latest_news(ticker)
+            if news_articles:
+                for article in news_articles:
+                    st.markdown(f"- [{article['title']}]({article['url']})")
+                    st.write(article['description'])
+                predicted_movement = optimizer.predict_movement(news_articles)
+                st.write(f"Predicted movement for {asset}: {predicted_movement}")
+            else:
+                st.write("No news available for this asset.")
         if not ticker_list:
             st.error("Please select at least one asset.")
             st.stop()
