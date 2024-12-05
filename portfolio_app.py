@@ -71,6 +71,9 @@ translations = {
         "explanation_hhi": "**Herfindahl-Hirschman Index (HHI):** A diversification metric that measures the concentration of investments in a portfolio.",
         "explanation_sharpe_ratio": "**Sharpe Ratio:** Measures risk-adjusted returns, indicating how much excess return you receive for the extra volatility endured.",
         "explanation_lstm": "**Explanation of Predicted Returns:**\nThe LSTM model is used to predict future stock returns based on historical price data. The graph displays the expected changes in returns for the next 30 business days. The model captures trends and seasonality, but it is important to understand that predictions have inherent uncertainty, especially due to market volatility. Use this information as an additional tool to make decisions rather than a definitive future outlook.",
+        "feedback_sharpe_good": "Great! A Sharpe Ratio above 1 indicates that your portfolio is generating good returns for the level of risk taken.",
+        "feedback_sharpe_average": "Average. A Sharpe Ratio between 0.5 and 1 suggests that your portfolio returns are acceptable for the risk taken.",
+        "feedback_sharpe_poor": "Poor. A Sharpe Ratio below 0.5 indicates that your portfolio may not be generating adequate returns for the level of risk taken. Consider diversifying your assets or adjusting your investment strategy.",
         "success_optimize": "Portfolio optimization completed successfully!"
     },
     'ja': {
@@ -97,7 +100,7 @@ translations = {
         "error_no_assets_lstm": "LSTMモデルを訓練する前に、ポートフォリオに少なくとも1つの資産を追加してください。",
         "error_no_assets_opt": "最適化する前に、ポートフォリオに少なくとも1つの資産を追加してください。",
         "error_date": "開始日は終了日より前でなければなりません。",
-        "allocation_title": "🔑 最適なポートフォリオ配分（目標リターン：{target}%）",
+        "allocation_title": "🔑 最適なポートフォリオ配分（目標リターン：{target}%)",
         "performance_metrics": "📊 ポートフォリオのパフォーマンス指標",
         "visual_analysis": "📊 視覚的分析",
         "portfolio_composition": "📈 ポートフォリオ構成",
@@ -114,6 +117,9 @@ translations = {
         "explanation_hhi": "**ハーフィンダール・ハーシュマン指数 (HHI):** ポートフォリオ内の投資集中度を測定する多様化指標です。",
         "explanation_sharpe_ratio": "**シャープレシオ:** リスク調整後のリターンを測定し、追加のボラティリティに対してどれだけの超過リターンを受け取っているかを示します。",
         "explanation_lstm": "**予測リターンの説明：**\nLSTMモデルは、過去の価格データに基づいて将来の株式リターンを予測するために使用されます。グラフには、次の30営業日にわたるリターンの予想変動が表示されています。モデルはトレンドと季節性を捉えますが、予測には市場のボラティリティによる固有の不確実性が伴うことを理解することが重要です。この情報は、将来の見通しを決定するための確定的なものではなく、意思決定の補助ツールとして使用してください。",
+        "feedback_sharpe_good": "素晴らしいです！シャープレシオが1以上であれば、リスクに対して良好なリターンを生成していることを示します。",
+        "feedback_sharpe_average": "平均的です。シャープレシオが0.5〜1の間であれば、リスクに対して許容範囲内のリターンを示しています。",
+        "feedback_sharpe_poor": "低いです。シャープレシオが0.5未満であれば、リスクに対して十分なリターンを生成していない可能性があります。資産の多様化や投資戦略の調整を検討してください。",
         "success_optimize": "ポートフォリオの最適化が正常に完了しました！"
     }
 }
@@ -271,6 +277,9 @@ class PortfolioOptimizer:
             X.append(scaled_data[i-look_back:i])
             y.append(scaled_data[i])
 
+        if not X or not y:
+            raise ValueError("Not enough data to create training samples. Please adjust the date range or add more data.")
+
         X, y = np.array(X), np.array(y)
         return X, y, scaler
 
@@ -295,6 +304,9 @@ class PortfolioOptimizer:
         """
         Predict future returns using the LSTM model.
         """
+        if len(self.returns) < 60:
+            raise ValueError("Not enough data to make predictions. Ensure there are at least 60 days of returns data.")
+
         last_data = self.returns[-60:].values
         scaled_last_data = scaler.transform(last_data)
 
@@ -517,11 +529,21 @@ def main():
                         if key == get_translated_text(lang, "hhi"):
                             display_value = f"{value:.4f}"
                         else:
-                            display_value = f"{value:.2%}" if 'HHI' not in key else f"{value:.4f}"
+                            display_value = f"{value:.2f}" if key == get_translated_text(lang, "sharpe_ratio") else f"{value:.2%}"
                         st.markdown(f"**{key}:** {display_value}")
                         explanation_key = f"explanation_{key.lower().replace(' ', '_').replace('(', '').replace(')', '')}"
                         explanation = translations[lang].get(explanation_key, "")
                         st.markdown(explanation)
+
+                        # Provide feedback for Sharpe Ratio
+                        if key == get_translated_text(lang, "sharpe_ratio"):
+                            if value > 1:
+                                feedback = translations[lang].get("feedback_sharpe_good", "")
+                            elif 0.5 <= value <= 1:
+                                feedback = translations[lang].get("feedback_sharpe_average", "")
+                            else:
+                                feedback = translations[lang].get("feedback_sharpe_poor", "")
+                            st.markdown(f"**Feedback:** {feedback}")
 
                 # Display Visuals
                 st.subheader(get_translated_text(lang, "visual_analysis"))
