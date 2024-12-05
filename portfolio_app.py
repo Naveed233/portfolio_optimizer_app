@@ -241,7 +241,7 @@ class PortfolioOptimizer:
         Calculate portfolio return, volatility, and Sharpe ratio.
         Ensure weights align with current tickers.
         """
-        weights = np.array(weights)
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         if len(weights) != len(self.tickers):
             raise ValueError("Weights array length does not match the number of tickers.")
         
@@ -257,7 +257,7 @@ class PortfolioOptimizer:
         """
         Calculate the Sortino Ratio for the portfolio.
         """
-        weights = np.array(weights)
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         if len(weights) != len(self.tickers):
             raise ValueError("Weights array length does not match the number of tickers.")
         
@@ -276,7 +276,7 @@ class PortfolioOptimizer:
         """
         Calculate the Calmar Ratio for the portfolio.
         """
-        weights = np.array(weights)
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         if len(weights) != len(self.tickers):
             raise ValueError("Weights array length does not match the number of tickers.")
         
@@ -293,6 +293,7 @@ class PortfolioOptimizer:
         """
         Calculate Value at Risk (VaR) for the portfolio.
         """
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         portfolio_returns = self.returns.dot(weights)
         var = np.percentile(portfolio_returns, (1 - confidence_level) * 100)
         return var
@@ -301,6 +302,7 @@ class PortfolioOptimizer:
         """
         Calculate Conditional Value at Risk (CVaR) for the portfolio.
         """
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         portfolio_returns = self.returns.dot(weights)
         var = self.value_at_risk(weights, confidence_level)
         cvar = portfolio_returns[portfolio_returns <= var].mean()
@@ -310,6 +312,7 @@ class PortfolioOptimizer:
         """
         Calculate Maximum Drawdown for the portfolio.
         """
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         portfolio_returns = self.returns.dot(weights)
         cumulative_returns = (1 + portfolio_returns).cumprod()
         peak = cumulative_returns.cummax()
@@ -321,12 +324,14 @@ class PortfolioOptimizer:
         """
         Calculate Herfindahl-Hirschman Index (HHI) for the portfolio.
         """
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         return np.sum(weights ** 2)
 
     def sharpe_ratio_objective(self, weights):
         """
         Objective function to maximize Sharpe Ratio.
         """
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         _, _, sharpe = self.portfolio_stats(weights)
         return -sharpe  # Negative because we minimize
 
@@ -346,10 +351,13 @@ class PortfolioOptimizer:
 
         if result.success:
             logger.info("Optimized portfolio for Sharpe Ratio successfully.")
-            return result.x
+            optimized_weights = result.x.flatten()
+            # Debugging: Display shape
+            st.write(f"Optimized Weights Shape: {optimized_weights.shape}")
+            return optimized_weights
         else:
             logger.warning(f"Optimization failed: {result.message}")
-            return initial_weights  # Fallback to equal weights
+            return initial_weights.flatten()  # Fallback to equal weights
 
     def optimize_min_volatility(self, target_return, max_weight=0.3):
         """
@@ -373,7 +381,10 @@ class PortfolioOptimizer:
 
         if result.success:
             logger.info("Optimized portfolio for minimum volatility successfully.")
-            return result.x
+            optimized_weights = result.x.flatten()
+            # Debugging: Display shape
+            st.write(f"Optimized Weights Shape: {optimized_weights.shape}")
+            return optimized_weights
         else:
             # Log the optimization failure
             logger.warning(f"Portfolio optimization failed: {result.message}")
@@ -384,7 +395,7 @@ class PortfolioOptimizer:
         """
         Calculate Beta and Alpha of the portfolio relative to the benchmark.
         """
-        weights = np.array(weights)
+        weights = np.array(weights).flatten()  # Ensure weights are 1D
         if len(weights) != len(self.tickers):
             raise ValueError("Weights array length does not match the number of tickers.")
         
@@ -495,7 +506,7 @@ class PortfolioOptimizer:
         results = np.zeros((4, num_portfolios))
         weights_record = []
         for i in range(num_portfolios):
-            weights = np.random.dirichlet(np.ones(len(self.tickers)), size=1)[0]
+            weights = np.random.dirichlet(np.ones(len(self.tickers)), size=1)[0].flatten()
             weights_record.append(weights)
             portfolio_return, portfolio_volatility, sharpe = self.portfolio_stats(weights)
             var = self.value_at_risk(weights, confidence_level=0.95)
@@ -1055,43 +1066,7 @@ def main():
 
                 # Display Performance Metrics in Table Form with Analysis Column
                 st.subheader("🔍 Detailed Metrics for Highest Sharpe Ratio Portfolio")
-                metric_display = []
-                for key, value in metrics.items():
-                    display_key = get_translated_text(lang, key)
-                    if key in ["hhi"]:
-                        display_value = f"{value:.4f}"
-                    elif key in ["beta", "alpha"]:
-                        display_value = f"{value:.2f}"
-                    elif key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio"]:
-                        display_value = f"{value:.2f}"
-                    else:
-                        display_value = f"{value:.2%}"
-                    
-                    # Get analysis
-                    analysis_func = {
-                        "var": analyze_var,
-                        "cvar": analyze_cvar,
-                        "max_drawdown": analyze_max_drawdown,
-                        "hhi": analyze_hhi,
-                        "sharpe_ratio": analyze_sharpe,
-                        "sortino_ratio": analyze_sortino,
-                        "calmar_ratio": analyze_calmar,
-                        "beta": analyze_beta,
-                        "alpha": analyze_alpha
-                    }.get(key, lambda x: "")
-                    
-                    analysis = analysis_func(value)
-                    metric_display.append({
-                        "Metric": display_key,
-                        "Value": display_value,
-                        "Analysis": analysis
-                    })
-                
-                metrics_df = pd.DataFrame.from_dict(metric_display)
-                st.table(metrics_df.style.set_properties(**{
-                    'text-align': 'left',
-                    'padding': '5px'
-                }))
+                display_metrics_table(metrics, lang)
 
                 # Display Visuals
                 st.subheader(get_translated_text(lang, "visual_analysis"))
@@ -1159,7 +1134,8 @@ def main():
                 # Display Analysis for Highest Sharpe Ratio Portfolio
                 st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
 
-                st.success(get_translated_text(lang, "explanation_sharpe_button"))
+                # Removed the unwanted explanation text below
+                # st.success(get_translated_text(lang, "explanation_sharpe_button"))
 
             except ValueError as ve:
                 st.error(str(ve))
