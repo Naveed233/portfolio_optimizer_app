@@ -28,10 +28,10 @@ languages = {
     '日本語': 'ja'
 }
 
-# Define language strings
+# Define language strings without emojis in plot and main titles
 translations = {
     'en': {
-        "title": "📈 Portfolio Optimization with Advanced Features",
+        "title": "Portfolio Optimization with Advanced Features",
         "user_inputs": "🔧 User Inputs",
         "select_universe": "Select an Asset Universe:",
         "custom_tickers": "Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):",
@@ -46,9 +46,9 @@ translations = {
         "strategy_risk_free": "Risk-free Investment",
         "strategy_profit": "Profit-focused Investment",
         "target_return": "Select a specific target return (in %)",
-        "train_lstm": "🤖 Train LSTM Model for Future Returns Prediction",
+        "train_lstm": "Train LSTM Model for Future Returns Prediction",
         "more_info_lstm": "ℹ️ More Information on LSTM",
-        "optimize_portfolio": "📈 Optimize Portfolio",
+        "optimize_portfolio": "Optimize Portfolio",
         "portfolio_analysis": "🔍 Portfolio Analysis & Optimization Results",
         "success_lstm": "🤖 LSTM model trained successfully!",
         "error_no_assets_lstm": "Please add at least one asset to your portfolio before training the LSTM model.",
@@ -57,9 +57,9 @@ translations = {
         "allocation_title": "🔑 Optimal Portfolio Allocation (Target Return: {target}%)",
         "performance_metrics": "📊 Portfolio Performance Metrics",
         "visual_analysis": "📊 Visual Analysis",
-        "portfolio_composition": "📈 Portfolio Composition",
-        "portfolio_metrics": "📊 Portfolio Performance Metrics",
-        "correlation_heatmap": "📈 Asset Correlation Heatmap",
+        "portfolio_composition": "Portfolio Composition",
+        "portfolio_metrics": "Portfolio Performance Metrics",
+        "correlation_heatmap": "Asset Correlation Heatmap",
         "var": "Value at Risk (VaR)",
         "cvar": "Conditional Value at Risk (CVaR)",
         "max_drawdown": "Maximum Drawdown",
@@ -77,7 +77,7 @@ translations = {
         "success_optimize": "Portfolio optimization completed successfully!"
     },
     'ja': {
-        "title": "📈 高度な機能を備えたポートフォリオ最適化アプリ",
+        "title": "高度な機能を備えたポートフォリオ最適化アプリ",
         "user_inputs": "🔧 ユーザー入力",
         "select_universe": "資産ユニバースを選択してください：",
         "custom_tickers": "株式ティッカーをカンマで区切って入力してください（例：AAPL, MSFT, TSLA）：",
@@ -92,9 +92,9 @@ translations = {
         "strategy_risk_free": "リスクフリー投資",
         "strategy_profit": "利益重視投資",
         "target_return": "特定の目標リターンを選択してください（%）",
-        "train_lstm": "🤖 将来のリターン予測のためにLSTMモデルを訓練",
+        "train_lstm": "将来のリターン予測のためにLSTMモデルを訓練",
         "more_info_lstm": "ℹ️ LSTMに関する詳細情報",
-        "optimize_portfolio": "📈 ポートフォリオを最適化",
+        "optimize_portfolio": "ポートフォリオを最適化",
         "portfolio_analysis": "🔍 ポートフォリオ分析と最適化結果",
         "success_lstm": "🤖 LSTMモデルが正常に訓練されました！",
         "error_no_assets_lstm": "LSTMモデルを訓練する前に、ポートフォリオに少なくとも1つの資産を追加してください。",
@@ -103,9 +103,9 @@ translations = {
         "allocation_title": "🔑 最適なポートフォリオ配分（目標リターン：{target}%)",
         "performance_metrics": "📊 ポートフォリオのパフォーマンス指標",
         "visual_analysis": "📊 視覚的分析",
-        "portfolio_composition": "📈 ポートフォリオ構成",
-        "portfolio_metrics": "📊 ポートフォリオのパフォーマンス指標",
-        "correlation_heatmap": "📈 資産相関ヒートマップ",
+        "portfolio_composition": "ポートフォリオ構成",
+        "portfolio_metrics": "ポートフォリオのパフォーマンス指標",
+        "correlation_heatmap": "資産相関ヒートマップ",
         "var": "リスク価値 (VaR)",
         "cvar": "条件付きリスク価値 (CVaR)",
         "max_drawdown": "最大ドローダウン",
@@ -465,8 +465,9 @@ def main():
                 plt.tight_layout()
                 st.pyplot(fig)
 
-                # Button to explain what the plot means
-                if st.sidebar.button(get_translated_text(lang, "more_info_lstm")):
+                # Checkbox to show more information under the graph
+                show_info = st.checkbox(get_translated_text(lang, "more_info_lstm"))
+                if show_info:
                     explanation = get_translated_text(lang, "explanation_lstm")
                     st.markdown(explanation)
 
@@ -518,7 +519,7 @@ def main():
                 st.subheader(get_translated_text(lang, "performance_metrics"))
                 metrics = {
                     "Expected Annual Return (%)": portfolio_return * 100,
-                    "Annual Volatility (Risk) (%)": portfolio_volatility * 100,
+                    "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                     get_translated_text(lang, "sharpe_ratio"): sharpe_ratio,
                     get_translated_text(lang, "var"): var_95,
                     get_translated_text(lang, "cvar"): cvar_95,
@@ -572,7 +573,7 @@ def main():
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
                         "Expected Annual Return (%)": portfolio_return * 100,
-                        "Annual Volatility (Risk) (%)": portfolio_volatility * 100,
+                        "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
                     metrics_bar = pd.DataFrame.from_dict(performance_metrics, orient='index', columns=['Value'])
@@ -581,7 +582,7 @@ def main():
                     for p in ax2.patches:
                         ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2., p.get_height()),
                                      ha='center', va='bottom', fontsize=10)
-                    plt.xticks(rotation=45, ha='right')
+                    plt.xticks(rotation=0, ha='center')  # Adjust rotation if needed
                     plt.tight_layout()
                     st.pyplot(fig2)
 
