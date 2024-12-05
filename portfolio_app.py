@@ -25,7 +25,7 @@ st.set_page_config(
 # Define language options
 languages = {
     'English': 'en',
-    'Español': 'es'
+    '日本語': 'ja'
 }
 
 # Define language strings
@@ -73,48 +73,48 @@ translations = {
         "explanation_lstm": "**Explanation of Predicted Returns:**\nThe LSTM model is used to predict future stock returns based on historical price data. The graph displays the expected changes in returns for the next 30 business days. The model captures trends and seasonality, but it is important to understand that predictions have inherent uncertainty, especially due to market volatility. Use this information as an additional tool to make decisions rather than a definitive future outlook.",
         "success_optimize": "Portfolio optimization completed successfully!"
     },
-    'es': {
-        "title": "📈 Aplicación de Optimización de Portafolios con Funciones Avanzadas",
-        "user_inputs": "🔧 Entradas del Usuario",
-        "select_universe": "Selecciona un Universo de Activos:",
-        "custom_tickers": "Ingrese los símbolos de acciones separados por comas (ej., AAPL, MSFT, TSLA):",
-        "add_portfolio": "Agregar a Mi Portafolio",
-        "my_portfolio": "📁 Mi Portafolio",
-        "no_assets": "No se han agregado activos todavía.",
-        "optimization_parameters": "📅 Parámetros de Optimización",
-        "start_date": "Fecha de Inicio",
-        "end_date": "Fecha Final",
-        "risk_free_rate": "Ingrese la tasa libre de riesgo (en %):",
-        "investment_strategy": "Elige tu Estrategia de Inversión:",
-        "strategy_risk_free": "Inversión sin Riesgo",
-        "strategy_profit": "Inversión Orientada a Ganancias",
-        "target_return": "Selecciona un retorno objetivo específico (en %)",
-        "train_lstm": "🤖 Entrenar Modelo LSTM para Predicción de Retornos Futuros",
-        "more_info_lstm": "ℹ️ Más Información sobre LSTM",
-        "optimize_portfolio": "📈 Optimizar Portafolio",
-        "portfolio_analysis": "🔍 Análisis y Resultados de Optimización del Portafolio",
-        "success_lstm": "🤖 ¡Modelo LSTM entrenado exitosamente!",
-        "error_no_assets_lstm": "Por favor, agrega al menos un activo a tu portafolio antes de entrenar el modelo LSTM.",
-        "error_no_assets_opt": "Por favor, agrega al menos un activo a tu portafolio antes de la optimización.",
-        "error_date": "La fecha de inicio debe ser anterior a la fecha final.",
-        "allocation_title": "🔑 Asignación Óptima del Portafolio (Retorno Objetivo: {target}%)",
-        "performance_metrics": "📊 Métricas de Desempeño del Portafolio",
-        "visual_analysis": "📊 Análisis Visual",
-        "portfolio_composition": "📈 Composición del Portafolio",
-        "portfolio_metrics": "📊 Métricas de Desempeño del Portafolio",
-        "correlation_heatmap": "📈 Mapa de Calor de Correlación de Activos",
-        "var": "Valor en Riesgo (VaR)",
-        "cvar": "Valor en Riesgo Condicional (CVaR)",
-        "max_drawdown": "Máximo Drawdown",
-        "hhi": "Índice Herfindahl-Hirschman (HHI)",
-        "sharpe_ratio": "Ratio de Sharpe",
-        "explanation_var": "**Valor en Riesgo (VaR):** Estima la pérdida máxima potencial de un portafolio durante un período de tiempo específico en un nivel de confianza dado.",
-        "explanation_cvar": "**Valor en Riesgo Condicional (CVaR):** Mide la pérdida esperada que excede el VaR, proporcionando información sobre el riesgo de cola.",
-        "explanation_max_drawdown": "**Máximo Drawdown:** Mide la mayor caída de pico a valle en el valor del portafolio, indicando el peor escenario posible.",
-        "explanation_hhi": "**Índice Herfindahl-Hirschman (HHI):** Una métrica de diversificación que mide la concentración de inversiones en un portafolio.",
-        "explanation_sharpe_ratio": "**Ratio de Sharpe:** Mide los retornos ajustados por riesgo, indicando cuánto retorno excedente se recibe por la volatilidad adicional soportada.",
-        "explanation_lstm": "**Explicación de Retornos Predichos:**\nEl modelo LSTM se utiliza para predecir retornos futuros de acciones basados en datos históricos de precios. El gráfico muestra los cambios esperados en los retornos para los próximos 30 días hábiles. El modelo captura tendencias y estacionalidades, pero es importante entender que las predicciones tienen incertidumbre inherente, especialmente debido a la volatilidad del mercado. Usa esta información como una herramienta adicional para tomar decisiones en lugar de una perspectiva definitiva del futuro.",
-        "success_optimize": "¡Optimización del portafolio completada exitosamente!"
+    'ja': {
+        "title": "📈 高度な機能を備えたポートフォリオ最適化アプリ",
+        "user_inputs": "🔧 ユーザー入力",
+        "select_universe": "資産ユニバースを選択してください：",
+        "custom_tickers": "株式ティッカーをカンマで区切って入力してください（例：AAPL, MSFT, TSLA）：",
+        "add_portfolio": "マイポートフォリオに追加",
+        "my_portfolio": "📁 マイポートフォリオ",
+        "no_assets": "まだ資産が追加されていません。",
+        "optimization_parameters": "📅 最適化パラメータ",
+        "start_date": "開始日",
+        "end_date": "終了日",
+        "risk_free_rate": "無リスク金利を入力してください（%）：",
+        "investment_strategy": "投資戦略を選択してください：",
+        "strategy_risk_free": "リスクフリー投資",
+        "strategy_profit": "利益重視投資",
+        "target_return": "特定の目標リターンを選択してください（%）",
+        "train_lstm": "🤖 将来のリターン予測のためにLSTMモデルを訓練",
+        "more_info_lstm": "ℹ️ LSTMに関する詳細情報",
+        "optimize_portfolio": "📈 ポートフォリオを最適化",
+        "portfolio_analysis": "🔍 ポートフォリオ分析と最適化結果",
+        "success_lstm": "🤖 LSTMモデルが正常に訓練されました！",
+        "error_no_assets_lstm": "LSTMモデルを訓練する前に、ポートフォリオに少なくとも1つの資産を追加してください。",
+        "error_no_assets_opt": "最適化する前に、ポートフォリオに少なくとも1つの資産を追加してください。",
+        "error_date": "開始日は終了日より前でなければなりません。",
+        "allocation_title": "🔑 最適なポートフォリオ配分（目標リターン：{target}%）",
+        "performance_metrics": "📊 ポートフォリオのパフォーマンス指標",
+        "visual_analysis": "📊 視覚的分析",
+        "portfolio_composition": "📈 ポートフォリオ構成",
+        "portfolio_metrics": "📊 ポートフォリオのパフォーマンス指標",
+        "correlation_heatmap": "📈 資産相関ヒートマップ",
+        "var": "リスク価値 (VaR)",
+        "cvar": "条件付きリスク価値 (CVaR)",
+        "max_drawdown": "最大ドローダウン",
+        "hhi": "ハーフィンダール・ハーシュマン指数 (HHI)",
+        "sharpe_ratio": "シャープレシオ",
+        "explanation_var": "**リスク価値 (VaR):** 指定された信頼水準で、特定の期間内にポートフォリオが被る最大損失を推定します。",
+        "explanation_cvar": "**条件付きリスク価値 (CVaR):** VaRを超える損失の期待値を測定し、テールリスクに関する洞察を提供します。",
+        "explanation_max_drawdown": "**最大ドローダウン:** ポートフォリオの価値がピークから谷に下落する最大幅を測定し、最悪のシナリオを示します。",
+        "explanation_hhi": "**ハーフィンダール・ハーシュマン指数 (HHI):** ポートフォリオ内の投資集中度を測定する多様化指標です。",
+        "explanation_sharpe_ratio": "**シャープレシオ:** リスク調整後のリターンを測定し、追加のボラティリティに対してどれだけの超過リターンを受け取っているかを示します。",
+        "explanation_lstm": "**予測リターンの説明：**\nLSTMモデルは、過去の価格データに基づいて将来の株式リターンを予測するために使用されます。グラフには、次の30営業日にわたるリターンの予想変動が表示されています。モデルはトレンドと季節性を捉えますが、予測には市場のボラティリティによる固有の不確実性が伴うことを理解することが重要です。この情報は、将来の見通しを決定するための確定的なものではなく、意思決定の補助ツールとして使用してください。",
+        "success_optimize": "ポートフォリオの最適化が正常に完了しました！"
     }
 }
 
@@ -435,8 +435,8 @@ def main():
                 # Plot future predictions
                 fig, ax = plt.subplots(figsize=(10, 4))
                 ax.plot(prediction_df['Date'], prediction_df['Predicted Returns'], label="Predicted Returns", color='blue')
-                ax.set_xlabel(get_translated_text(lang, "end_date"))
-                ax.set_ylabel(get_translated_text(lang, "sharpe_ratio"))  # Adjust label as needed
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Predicted Returns")
                 ax.set_title(get_translated_text(lang, "train_lstm"))
                 ax.legend()
                 plt.xticks(rotation=45)
@@ -495,26 +495,33 @@ def main():
                 # Display Performance Metrics
                 st.subheader(get_translated_text(lang, "performance_metrics"))
                 metrics = {
+                    "Expected Annual Return (%)": portfolio_return * 100,
+                    "Annual Volatility (Risk) (%)": portfolio_volatility * 100,
                     get_translated_text(lang, "sharpe_ratio"): sharpe_ratio,
                     get_translated_text(lang, "var"): var_95,
                     get_translated_text(lang, "cvar"): cvar_95,
                     get_translated_text(lang, "max_drawdown"): max_dd,
-                    get_translated_text(lang, "hhi"): hhi,
-                    "Expected Annual Return (%)": portfolio_return * 100,
-                    "Annual Volatility (Risk) (%)": portfolio_volatility * 100,
+                    get_translated_text(lang, "hhi"): hhi
                 }
                 metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
                 st.table(metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
                 # Display Risk Metrics with Explanations
                 st.subheader(get_translated_text(lang, "performance_metrics"))
+                # Loop through specific risk metrics to display with explanations
                 for key in [get_translated_text(lang, "var"), get_translated_text(lang, "cvar"),
                             get_translated_text(lang, "max_drawdown"), get_translated_text(lang, "hhi"),
                             get_translated_text(lang, "sharpe_ratio")]:
-                    st.markdown(f"**{key}:** {metrics[key]:.2%}" if 'HHI' not in key else f"**{key}:** {metrics[key]:.4f}")
-                    explanation_key = f"explanation_{key.lower().replace(' ', '_').replace('(', '').replace(')', '')}"
-                    explanation = translations[lang].get(explanation_key, "")
-                    st.markdown(explanation)
+                    value = metrics.get(key, None)
+                    if value is not None:
+                        if key == get_translated_text(lang, "hhi"):
+                            display_value = f"{value:.4f}"
+                        else:
+                            display_value = f"{value:.2%}" if 'HHI' not in key else f"{value:.4f}"
+                        st.markdown(f"**{key}:** {display_value}")
+                        explanation_key = f"explanation_{key.lower().replace(' ', '_').replace('(', '').replace(')', '')}"
+                        explanation = translations[lang].get(explanation_key, "")
+                        st.markdown(explanation)
 
                 # Display Visuals
                 st.subheader(get_translated_text(lang, "visual_analysis"))
