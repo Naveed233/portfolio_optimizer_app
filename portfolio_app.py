@@ -848,7 +848,7 @@ def main():
                     # Bar Chart for Performance Metrics
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
-                        "Expected Annual Return (%)": portfolio_return * 100,
+                        "Expected\n Annual Return (%)": portfolio_return * 100,
                         "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
