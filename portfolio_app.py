@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Configure logging
-logging.basicConfig(level=logging.INFO
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set Streamlit page configuration
