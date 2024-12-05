@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO
 logger = logging.getLogger(__name__)
 
 # Set Streamlit page configuration
@@ -987,7 +987,7 @@ def main():
                 sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 plt.colorbar(scatter, label='Sharpe Ratio')
                 ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
-                ax4.set_xlabel('Annual') \n ('Volatility (Risk)')
+                ax4.set_xlabel('Annual \n Volatility (Risk)')
                 ax4.set_ylabel('Expected Annual Return')
                 ax4.set_title('Efficient Frontier')
                 ax4.legend()
