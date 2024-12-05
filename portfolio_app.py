@@ -10,6 +10,7 @@ import seaborn as sns
 import tensorflow as tf
 import random
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -273,15 +274,21 @@ class PortfolioOptimizer:
         
         X, y = [], []
         look_back = 60  # Look-back period (e.g., 60 days)
-        for i in range(look_back, len(scaled_data), 3):  # Use data every 3 days
+        for i in range(look_back, len(scaled_data)):
             X.append(scaled_data[i-look_back:i])
             y.append(scaled_data[i])
-
-        if not X or not y:
+        
+        # Split into training and testing sets (e.g., 80% train, 20% test)
+        split = int(len(X) * 0.8)
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+    
+        if not X_train or not y_train:
             raise ValueError("Not enough data to create training samples. Please adjust the date range or add more data.")
-
-        X, y = np.array(X), np.array(y)
-        return X, y, scaler
+    
+        X_train, y_train = np.array(X_train), np.array(y_train)
+        X_test, y_test = np.array(X_test), np.array(y_test)
+        return X_train, y_train, X_test, y_test, scaler
 
     def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
         # Set random seed for reproducibility
@@ -320,6 +327,21 @@ class PortfolioOptimizer:
         # Ensure the length matches the number of future steps requested
         future_returns = predicted[0][:steps] if len(predicted[0]) >= steps else predicted[0]
         return future_returns
+
+    def evaluate_model(self, model, scaler, X_test, y_test):
+        """
+        Evaluate the LSTM model using MAE, RMSE, and R-squared metrics.
+        """
+        predictions_scaled = model.predict(X_test)
+        predictions = scaler.inverse_transform(predictions_scaled)
+        y_test_inverse = scaler.inverse_transform(y_test)
+
+        # Calculate evaluation metrics
+        mae = mean_absolute_error(y_test_inverse, predictions)
+        rmse = np.sqrt(mean_squared_error(y_test_inverse, predictions))
+        r2 = r2_score(y_test_inverse, predictions)
+
+        return mae, rmse, r2
 
 # Helper Functions
 def extract_ticker(asset_string):
@@ -413,11 +435,14 @@ def main():
         (get_translated_text(lang, "strategy_risk_free"), get_translated_text(lang, "strategy_profit"))
     )
 
-    # Specific Target Return Slider
-    specific_target_return = st.sidebar.slider(
-        get_translated_text(lang, "target_return"), 
-        min_value=-5.0, max_value=20.0, value=5.0, step=0.1
-    ) / 100
+    # Display Target Return Slider only if "Risk-free Investment" is selected
+    if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
+        specific_target_return = st.sidebar.slider(
+            get_translated_text(lang, "target_return"), 
+            min_value=-5.0, max_value=20.0, value=5.0, step=0.1
+        ) / 100
+    else:
+        specific_target_return = None  # Not used in Profit-focused Investment
 
     # Train LSTM Button
     train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"))
@@ -439,10 +464,21 @@ def main():
                 optimizer.fetch_data()
 
                 # Prepare data for LSTM
-                X, y, scaler = optimizer.prepare_data_for_lstm()
-                model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
+                X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm()
+                model = optimizer.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
+                mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
 
                 st.success(get_translated_text(lang, "success_lstm"))
+
+                # Display Evaluation Metrics
+                st.subheader("LSTM Model Evaluation Metrics")
+                eval_metrics = {
+                    "Mean Absolute Error (MAE)": mae,
+                    "Root Mean Squared Error (RMSE)": rmse,
+                    "R-squared (R²)": r2
+                }
+                eval_df = pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value'])
+                st.table(eval_df.style.format({"Value": "{:.4f}"}))
 
                 # Predict future returns for the next 30 days
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
@@ -512,7 +548,7 @@ def main():
                 allocation = allocation[allocation['Weight (%)'] > 0].reset_index(drop=True)
 
                 # Display Allocation
-                st.subheader(get_translated_text(lang, "allocation_title").format(target=round(specific_target_return*100, 2)))
+                st.subheader(get_translated_text(lang, "allocation_title").format(target=round(specific_target_return*100, 2) if specific_target_return else "N/A"))
                 st.dataframe(allocation.style.format({"Weight (%)": "{:.2f}"}))
 
                 # Display Performance Metrics
