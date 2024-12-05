@@ -458,7 +458,7 @@ class PortfolioOptimizer:
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
     
-        if not X_train.any() or not y_train.any():
+        if not any(X_train) or not any(y_train):
             raise ValueError("Not enough data to create training samples. Please adjust the date range or add more data.")
     
         X_train, y_train = np.array(X_train), np.array(y_train)
@@ -537,6 +537,35 @@ class PortfolioOptimizer:
             results[3,i] = sortino
             results[4,i] = calmar
         return results, weights_record
+
+    def min_volatility(self, target_return):
+        """
+        Optimize portfolio to minimize volatility for a given target return.
+        """
+        def objective(weights):
+            portfolio_return, portfolio_volatility, _ = self.portfolio_stats(weights)
+            return portfolio_volatility
+
+        constraints = [
+            {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+            {'type': 'eq', 'fun': lambda x: self.portfolio_stats(x)[0] - target_return}
+        ]
+
+        num_assets = len(self.tickers)
+        initial_weights = np.ones(num_assets) / num_assets
+        bounds = tuple((0, 1) for _ in range(num_assets))
+
+        result = minimize(
+            objective, initial_weights,
+            method='SLSQP', bounds=bounds, constraints=constraints
+        )
+
+        if result.success:
+            logger.info("Optimized portfolio for minimum volatility successfully.")
+            return result.x
+        else:
+            logger.warning(f"Minimum volatility optimization failed: {result.message}")
+            return initial_weights  # Fallback to equal weights
 
 # Helper Functions
 def extract_ticker(asset_string):
@@ -695,7 +724,7 @@ def display_metrics(metrics, lang):
         'text-align': 'left',
         'padding': '5px'
     }))
-    
+
 def display_optimization_results(optimizer, optimal_weights, lang, target_return=None, strategy="Sharpe Ratio"):
     """
     Display the optimization results in a structured format.
@@ -812,7 +841,7 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
         
         # Determine which portfolio has a better value based on the metric type
         # Higher is better for ratios and returns; lower is better for risk metrics
-        if key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha", "portfolio_return"]:
+        if key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"]:
             if optimized_value > base_value:
                 better = "Optimized"
                 better_portfolio = "Optimized"
@@ -1089,8 +1118,8 @@ def main():
                         "Expected Annual Return (%)": optimizer.portfolio_stats(base_weights)[0] * 100,
                         "Annual Volatility\n(Risk) (%)": optimizer.portfolio_stats(base_weights)[1] * 100,
                         "Sharpe Ratio": optimizer.portfolio_stats(base_weights)[2],
-                        "Sortino Ratio": sortino_ratio := optimizer.sortino_ratio(base_weights),
-                        "Calmar Ratio": calmar_ratio := optimizer.calmar_ratio(base_weights)
+                        "Sortino Ratio": optimizer.sortino_ratio(base_weights),
+                        "Calmar Ratio": optimizer.calmar_ratio(base_weights)
                     }
                     metrics_bar = pd.DataFrame.from_dict(performance_metrics, orient='index', columns=['Value'])
                     sns.barplot(x=metrics_bar.index, y='Value', data=metrics_bar, palette='viridis', ax=ax2)
@@ -1191,8 +1220,8 @@ def main():
                         "Expected Annual Return (%)": optimizer.portfolio_stats(optimal_weights)[0] * 100,
                         "Annual Volatility\n(Risk) (%)": optimizer.portfolio_stats(optimal_weights)[1] * 100,
                         "Sharpe Ratio": optimizer.portfolio_stats(optimal_weights)[2],
-                        "Sortino Ratio": sortino_ratio := optimizer.sortino_ratio(optimal_weights),
-                        "Calmar Ratio": calmar_ratio := optimizer.calmar_ratio(optimal_weights)
+                        "Sortino Ratio": optimizer.sortino_ratio(optimal_weights),
+                        "Calmar Ratio": optimizer.calmar_ratio(optimal_weights)
                     }
                     metrics_bar = pd.DataFrame.from_dict(performance_metrics, orient='index', columns=['Value'])
                     sns.barplot(x=metrics_bar.index, y='Value', data=metrics_bar, palette='viridis', ax=ax2)
@@ -1243,6 +1272,7 @@ def main():
             optimized_metrics = st.session_state['optimized_portfolio_metrics']
             compare_portfolios(base_metrics, optimized_metrics, lang)
 
+    # Add explanations after optimizations
     if optimize_sharpe or optimize_base:
         st.markdown(get_translated_text(lang, "explanation_sharpe_button"))
 
