@@ -1053,9 +1053,7 @@ def main():
             optimized_metrics = st.session_state['optimized_portfolio_metrics']
             compare_portfolios(base_metrics, optimized_metrics, lang)
 
-    # Add explanations after optimizations
-    if optimize_sharpe or optimize_portfolio:
-        st.markdown(get_translated_text(lang, "explanation_sharpe_button"))
+ 
 
 if __name__ == "__main__":
     main()
