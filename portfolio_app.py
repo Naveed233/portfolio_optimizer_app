@@ -390,9 +390,9 @@ def analyze_var(var):
     """
     Analyze Value at Risk (VaR).
     """
-    if var < -5:
+    if var < -0.05:
         return "High Risk: Your portfolio has a significant potential loss."
-    elif -5 <= var < -2:
+    elif -0.05 <= var < -0.02:
         return "Moderate Risk: Your portfolio has a moderate potential loss."
     else:
         return "Low Risk: Your portfolio is relatively safe."
@@ -401,9 +401,9 @@ def analyze_cvar(cvar):
     """
     Analyze Conditional Value at Risk (CVaR).
     """
-    if cvar < -7:
+    if cvar < -0.07:
         return "High Tail Risk: Significant losses beyond VaR."
-    elif -7 <= cvar < -4:
+    elif -0.07 <= cvar < -0.04:
         return "Moderate Tail Risk: Moderate losses beyond VaR."
     else:
         return "Low Tail Risk: Minimal losses beyond VaR."
@@ -412,9 +412,9 @@ def analyze_max_drawdown(dd):
     """
     Analyze Maximum Drawdown.
     """
-    if dd < -20:
+    if dd < -0.20:
         return "Severe Drawdown: The portfolio has experienced a major decline."
-    elif -20 <= dd < -10:
+    elif -0.20 <= dd < -0.10:
         return "Moderate Drawdown: The portfolio has experienced a noticeable decline."
     else:
         return "Minor Drawdown: The portfolio has maintained stability."
@@ -641,11 +641,11 @@ def main():
 
                 # Display Allocation
                 target_display = round(specific_target_return*100, 2) if specific_target_return else "N/A"
-                st.subheader(get_translated_text(lang, "allocation_title").format(target=target_display))
+                st.markdown(f"<h3>{get_translated_text(lang, 'allocation_title').format(target=target_display)}</h3>", unsafe_allow_html=True)
                 st.dataframe(allocation.style.format({"Weight (%)": "{:.2f}"}))
 
                 # Display Performance Metrics
-                st.subheader(get_translated_text(lang, "performance_metrics"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'performance_metrics')}</h3>", unsafe_allow_html=True)
                 metrics = {
                     "Expected Annual Return (%)": portfolio_return * 100,
                     "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
@@ -656,11 +656,8 @@ def main():
                     get_translated_text(lang, "hhi"): hhi
                 }
                 metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-                st.table(metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations and Feedback
-                st.subheader(get_translated_text(lang, "performance_metrics"))
-                # Loop through specific risk metrics to display with explanations
+                # Display each metric with larger font and analysis
                 for key in [get_translated_text(lang, "var"), get_translated_text(lang, "cvar"),
                             get_translated_text(lang, "max_drawdown"), get_translated_text(lang, "hhi"),
                             get_translated_text(lang, "sharpe_ratio")]:
@@ -670,11 +667,12 @@ def main():
                             display_value = f"{value:.4f}"
                         else:
                             display_value = f"{value:.2f}" if key == get_translated_text(lang, "sharpe_ratio") else f"{value:.2%}"
-                        st.markdown(f"**{key}:** {display_value}")
+                        # Metric with larger font
+                        st.markdown(f"<h3>{key}: {display_value}</h3>", unsafe_allow_html=True)
                         explanation_key = f"explanation_{key.lower().replace(' ', '_').replace('(', '').replace(')', '')}"
                         explanation = translations[lang].get(explanation_key, "")
+                        # Explanation in normal text
                         st.markdown(explanation)
-
                         # Provide feedback based on the metric
                         if key == get_translated_text(lang, "var"):
                             feedback = analyze_var(value)
@@ -690,10 +688,13 @@ def main():
                             feedback = ""
 
                         if feedback:
-                            st.markdown(f"**Analysis:** {feedback}")
+                            # Analysis in smaller font
+                            st.markdown(f"<p style='font-size:12px;'><strong>Analysis:</strong> {feedback}</p>", unsafe_allow_html=True)
+                        # Add spacing
+                        st.markdown("<br>", unsafe_allow_html=True)
 
                 # Display Visuals
-                st.subheader(get_translated_text(lang, "visual_analysis"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'visual_analysis')}</h3>", unsafe_allow_html=True)
                 col1, col2 = st.columns(2)
 
                 with col1:
@@ -723,7 +724,7 @@ def main():
                     st.pyplot(fig2)
 
                 # Correlation Heatmap
-                st.subheader(get_translated_text(lang, "correlation_heatmap"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'correlation_heatmap')}</h3>", unsafe_allow_html=True)
                 correlation_matrix = optimizer.returns.corr()
                 fig3, ax3 = plt.subplots(figsize=(8, 6))
                 sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
@@ -767,11 +768,11 @@ def main():
                 allocation = allocation[allocation['Weight (%)'] > 0].reset_index(drop=True)
 
                 # Display Allocation
-                st.subheader("🔑 Optimal Portfolio Allocation (Highest Sharpe Ratio)")
+                st.markdown("<h3>🔑 Optimal Portfolio Allocation (Highest Sharpe Ratio)</h3>", unsafe_allow_html=True)
                 st.dataframe(allocation.style.format({"Weight (%)": "{:.2f}"}))
 
                 # Display Performance Metrics
-                st.subheader(get_translated_text(lang, "performance_metrics"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'performance_metrics')}</h3>", unsafe_allow_html=True)
                 metrics = {
                     "Expected Annual Return (%)": portfolio_return * 100,
                     "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
@@ -782,11 +783,8 @@ def main():
                     get_translated_text(lang, "hhi"): hhi
                 }
                 metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-                st.table(metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations and Feedback
-                st.subheader(get_translated_text(lang, "performance_metrics"))
-                # Loop through specific risk metrics to display with explanations
+                # Display each metric with larger font and analysis
                 for key in [get_translated_text(lang, "var"), get_translated_text(lang, "cvar"),
                             get_translated_text(lang, "max_drawdown"), get_translated_text(lang, "hhi"),
                             get_translated_text(lang, "sharpe_ratio")]:
@@ -796,11 +794,12 @@ def main():
                             display_value = f"{value:.4f}"
                         else:
                             display_value = f"{value:.2f}" if key == get_translated_text(lang, "sharpe_ratio") else f"{value:.2%}"
-                        st.markdown(f"**{key}:** {display_value}")
+                        # Metric with larger font
+                        st.markdown(f"<h3>{key}: {display_value}</h3>", unsafe_allow_html=True)
                         explanation_key = f"explanation_{key.lower().replace(' ', '_').replace('(', '').replace(')', '')}"
                         explanation = translations[lang].get(explanation_key, "")
+                        # Explanation in normal text
                         st.markdown(explanation)
-
                         # Provide feedback based on the metric
                         if key == get_translated_text(lang, "var"):
                             feedback = analyze_var(value)
@@ -816,10 +815,13 @@ def main():
                             feedback = ""
 
                         if feedback:
-                            st.markdown(f"**Analysis:** {feedback}")
+                            # Analysis in smaller font
+                            st.markdown(f"<p style='font-size:12px;'><strong>Analysis:</strong> {feedback}</p>", unsafe_allow_html=True)
+                        # Add spacing
+                        st.markdown("<br>", unsafe_allow_html=True)
 
                 # Display Visuals
-                st.subheader(get_translated_text(lang, "visual_analysis"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'visual_analysis')}</h3>", unsafe_allow_html=True)
                 col1, col2 = st.columns(2)
 
                 with col1:
@@ -849,7 +851,7 @@ def main():
                     st.pyplot(fig2)
 
                 # Correlation Heatmap
-                st.subheader(get_translated_text(lang, "correlation_heatmap"))
+                st.markdown(f"<h3>{get_translated_text(lang, 'correlation_heatmap')}</h3>", unsafe_allow_html=True)
                 correlation_matrix = optimizer.returns.corr()
                 fig3, ax3 = plt.subplots(figsize=(8, 6))
                 sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
@@ -858,7 +860,7 @@ def main():
                 st.pyplot(fig3)
 
                 # Compute and Plot Efficient Frontier
-                st.subheader("📈 Efficient Frontier")
+                st.markdown("<h3>📈 Efficient Frontier</h3>", unsafe_allow_html=True)
                 results, weights_record = optimizer.compute_efficient_frontier()
                 portfolio_volatility = results[0]
                 portfolio_return = results[1]
@@ -871,9 +873,9 @@ def main():
 
                 # Plot Efficient Frontier
                 fig4, ax4 = plt.subplots(figsize=(10, 6))
-                ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
+                scatter = ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
                 sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
-                plt.colorbar(sc, label='Sharpe Ratio')
+                plt.colorbar(scatter, label='Sharpe Ratio')
                 ax4.set_xlabel('Annual Volatility (Risk)')
                 ax4.set_ylabel('Expected Annual Return')
                 ax4.set_title('Efficient Frontier')
@@ -882,10 +884,10 @@ def main():
                 st.pyplot(fig4)
 
                 # Display Analysis for Highest Sharpe Ratio Portfolio
-                st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
+                st.markdown("<p><strong>Analysis:</strong> This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.</p>", unsafe_allow_html=True)
 
                 # Display the optimized portfolio metrics again for clarity
-                st.subheader("🔍 Detailed Metrics for Highest Sharpe Ratio Portfolio")
+                st.markdown("<h3>🔍 Detailed Metrics for Highest Sharpe Ratio Portfolio</h3>", unsafe_allow_html=True)
                 detailed_metrics = {
                     "Expected Annual Return (%)": max_sharpe_ret * 100,
                     "Annual Volatility\n(Risk) (%)": max_sharpe_vol * 100,
@@ -896,16 +898,14 @@ def main():
                     "Herfindahl-Hirschman Index (HHI)": optimizer.herfindahl_hirschman_index(weights_record[max_sharpe_idx])
                 }
                 detailed_metrics_df = pd.DataFrame.from_dict(detailed_metrics, orient='index', columns=['Value'])
-                st.table(detailed_metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations and Feedback
-                st.subheader("📊 Detailed Performance Metrics")
+                # Display each detailed metric with larger font and analysis
                 for key in ["Expected Annual Return (%)", "Annual Volatility\n(Risk) (%)", "Sharpe Ratio", "Value at Risk (VaR)", "Conditional Value at Risk (CVaR)", "Maximum Drawdown", "Herfindahl-Hirschman Index (HHI)"]:
                     value = detailed_metrics.get(key, None)
                     if value is not None:
                         display_value = f"{value:.2f}" if key in ["Sharpe Ratio"] else (f"{value:.2f}%" if "%" in key else f"{value:.4f}")
-                        st.markdown(f"**{key}:** {display_value}")
-
+                        # Metric with larger font
+                        st.markdown(f"<h3>{key}: {display_value}</h3>", unsafe_allow_html=True)
                         # Provide feedback based on the metric
                         if key == "Value at Risk (VaR)":
                             feedback = analyze_var(value)
@@ -921,9 +921,12 @@ def main():
                             feedback = ""
 
                         if feedback:
-                            st.markdown(f"**Analysis:** {feedback}")
+                            # Analysis in smaller font
+                            st.markdown(f"<p style='font-size:12px;'><strong>Analysis:</strong> {feedback}</p>", unsafe_allow_html=True)
+                        # Add spacing
+                        st.markdown("<br>", unsafe_allow_html=True)
 
-                st.success(get_translated_text(lang, "explanation_sharpe_button"))
+                st.markdown(get_translated_text(lang, "explanation_sharpe_button"))
 
             except ValueError as ve:
                 st.error(str(ve))
