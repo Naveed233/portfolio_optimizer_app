@@ -986,7 +986,6 @@ def main():
                 scatter = ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
                 sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 plt.colorbar(scatter, label='Sharpe Ratio')
-                ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 ax4.set_xlabel('Annual \n Volatility (Risk)')
                 ax4.set_ylabel('Expected Annual Return')
                 ax4.set_title('Efficient Frontier')
