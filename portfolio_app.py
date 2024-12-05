@@ -1,359 +1,343 @@
 import streamlit as st
 import yfinance as yf
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import numpy as np
 from scipy.optimize import minimize
-import logging
-from datetime import datetime
-import seaborn as sns
-import tensorflow as tf
-import random
-from sklearn.preprocessing import MinMaxScaler
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Set Streamlit page configuration
-st.set_page_config(
-    page_title="Portfolio Optimization App",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+import plotly.express as px
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+import requests
 
 # Portfolio Optimizer Class
 class PortfolioOptimizer:
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
         """
-        Initialize the PortfolioOptimizer with user-specified parameters.
+        Initializes the PortfolioOptimizer with given tickers, date range, and risk-free rate.
+
+        Parameters:
+        - tickers (str): Comma-separated stock tickers.
+        - start_date (str or datetime): Start date for historical data.
+        - end_date (str or datetime): End date for historical data.
+        - risk_free_rate (float): Annual risk-free rate in percentage.
         """
-        self.tickers = tickers
+        self.tickers = [ticker.strip().upper() for ticker in tickers.split(',')]
         self.start_date = start_date
         self.end_date = end_date
-        self.risk_free_rate = risk_free_rate
+        self.risk_free_rate = risk_free_rate / 100  # Convert percentage to decimal
         self.returns = None
 
     def fetch_data(self):
         """
-        Fetch historical price data and calculate daily returns.
+        Fetches historical adjusted closing prices and computes daily returns.
         """
-        logger.info(f"Fetching data for tickers: {self.tickers}")
-        data = yf.download(
-            self.tickers, start=self.start_date, end=self.end_date, progress=False
-        )["Adj Close"]
-
-        missing_tickers = set(self.tickers) - set(data.columns)
-        if missing_tickers:
-            st.warning(f"The following tickers were not fetched: {', '.join(missing_tickers)}")
-            logger.warning(f"Missing tickers: {missing_tickers}")
-
-        data.dropna(axis=1, inplace=True)
-
-        if data.empty:
-            logger.error("No data fetched after dropping missing tickers.")
-            raise ValueError("No data fetched. Please check the tickers and date range.")
-
-        # Update tickers to match the columns in the fetched data
-        self.tickers = list(data.columns)
+        data = yf.download(self.tickers, start=self.start_date, end=self.end_date, progress=False)["Adj Close"]
         self.returns = data.pct_change().dropna()
-        logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
-        return self.tickers
+
+    def fetch_news(self):
+        """
+        Fetches the top 3 latest news articles for each ticker using NewsAPI.
+
+        Returns:
+        - news_data (dict): Dictionary with tickers as keys and list of articles as values.
+        """
+        news_data = {}
+        API_KEY = 'YOUR_NEWSAPI_KEY'  # Replace with your NewsAPI key
+        for ticker in self.tickers:
+            url = f"https://newsapi.org/v2/everything?q={ticker}&sortBy=publishedAt&apiKey={API_KEY}"
+            response = requests.get(url)
+            if response.status_code == 200:
+                articles = response.json().get('articles', [])[:3]  # Get the top 3 news articles
+                news_data[ticker] = articles
+            else:
+                news_data[ticker] = []  # No news found or error in fetching
+        return news_data
+
+    def denoise_returns(self):
+        """
+        Applies PCA to denoise the returns data by retaining components that explain 95% of the variance.
+        """
+        pca = PCA(n_components=min(10, len(self.returns.columns)))  # Limit to 10 components or number of assets
+        pca_returns = pca.fit_transform(self.returns)
+        explained_variance = pca.explained_variance_ratio_.cumsum()
+        num_components = np.argmax(explained_variance >= 0.95) + 1
+        denoised_returns = pca.inverse_transform(pca_returns[:, :num_components])
+        self.returns = pd.DataFrame(denoised_returns, index=self.returns.index, columns=self.returns.columns)
+
+    def cluster_assets(self, n_clusters=3):
+        """
+        Clusters assets based on their return profiles using KMeans.
+
+        Parameters:
+        - n_clusters (int): Number of clusters.
+
+        Returns:
+        - clusters (ndarray): Cluster labels for each asset.
+        """
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        clusters = kmeans.fit_predict(self.returns.T)
+        return clusters
 
     def portfolio_stats(self, weights):
         """
-        Calculate portfolio return, volatility, and Sharpe ratio.
-        Ensure weights align with current tickers.
+        Calculates annual return, annual volatility, and Sharpe ratio for the portfolio.
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+
+        Returns:
+        - annual_return (float): Annualized return.
+        - annual_volatility (float): Annualized volatility.
+        - sharpe_ratio (float): Sharpe ratio.
         """
-        weights = np.array(weights)
-        if len(weights) != len(self.tickers):
-            raise ValueError("Weights array length does not match the number of tickers.")
-        
-        # Ensure weights sum to 1
-        weights = weights / np.sum(weights)
-        
-        portfolio_return = np.dot(weights, self.returns.mean()) * 252
-        portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
-        sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
-        return portfolio_return, portfolio_volatility, sharpe_ratio
+        annual_return = np.dot(weights, self.returns.mean()) * 252
+        annual_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
+        sharpe_ratio = (annual_return - self.risk_free_rate) / annual_volatility
+        return annual_return, annual_volatility, sharpe_ratio
 
-    def min_volatility(self, target_return, max_weight=0.3):
+    def value_at_risk(self, weights, confidence_level=0.95):
         """
-        Optimize portfolio with added weight constraints
+        Calculates the Value at Risk (VaR) for the portfolio.
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+        - confidence_level (float): Confidence level for VaR.
+
+        Returns:
+        - var (float): Value at Risk.
         """
-        num_assets = len(self.returns.columns)
-        constraints = (
-            {'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1},
-            {'type': 'eq', 'fun': lambda weights: self.portfolio_stats(weights)[0] - target_return}
-        )
-        bounds = tuple((0, max_weight) for _ in range(num_assets))
-        init_guess = [1. / num_assets] * num_assets
+        portfolio_returns = self.returns.dot(weights)
+        var = np.percentile(portfolio_returns, (1 - confidence_level) * 100)
+        return var
 
-        result = minimize(
-            lambda weights: self.portfolio_stats(weights)[1],
-            init_guess,
-            method='SLSQP',
-            bounds=bounds,
-            constraints=constraints
-        )
-
-        if result.success:
-            return result.x
-        else:
-            # Log the optimization failure
-            logger.warning(f"Portfolio optimization failed: {result.message}")
-            # Return an equal weight portfolio as a fallback
-            return np.ones(num_assets) / num_assets
-
-    def prepare_data_for_lstm(self):
+    def conditional_value_at_risk(self, weights, confidence_level=0.95):
         """
-        Prepare data for LSTM model
+        Calculates the Conditional Value at Risk (CVaR) for the portfolio.
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+        - confidence_level (float): Confidence level for CVaR.
+
+        Returns:
+        - cvar (float): Conditional Value at Risk.
         """
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(self.returns.values)
-        
-        X, y = [], []
-        look_back = 60  # Look-back period (e.g., 60 days)
-        for i in range(look_back, len(scaled_data), 3):  # Use data every 3 days
-            X.append(scaled_data[i-look_back:i])
-            y.append(scaled_data[i])
+        portfolio_returns = self.returns.dot(weights)
+        var = self.value_at_risk(weights, confidence_level)
+        cvar = portfolio_returns[portfolio_returns <= var].mean()
+        return cvar
 
-        X, y = np.array(X), np.array(y)
-        return X, y, scaler
-
-    def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
-        # Set random seed for reproducibility
-        seed_value = 42
-        np.random.seed(seed_value)
-        tf.random.set_seed(seed_value)
-        random.seed(seed_value)
+    def maximum_drawdown(self, weights):
         """
-        Train LSTM model
+        Calculates the Maximum Drawdown for the portfolio.
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+
+        Returns:
+        - max_drawdown (float): Maximum drawdown.
         """
-        model = tf.keras.Sequential()
-        model.add(tf.keras.layers.LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
-        model.add(tf.keras.layers.LSTM(units=50))
-        model.add(tf.keras.layers.Dense(units=X_train.shape[2]))
-        model.compile(optimizer='adam', loss='mean_squared_error')
-        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size)
-        return model
+        portfolio_returns = self.returns.dot(weights)
+        cumulative_returns = (1 + portfolio_returns).cumprod()
+        peak = cumulative_returns.cummax()
+        drawdown = (cumulative_returns - peak) / peak
+        max_drawdown = drawdown.min()
+        return max_drawdown
 
-    def predict_future_returns(self, model, scaler, steps=30):
+    def herfindahl_hirschman_index(self, weights):
         """
-        Predict future returns using the LSTM model
+        Calculates the Herfindahl-Hirschman Index (HHI) to measure portfolio diversification.
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+
+        Returns:
+        - hhi (float): Herfindahl-Hirschman Index.
         """
-        last_data = self.returns[-60:].values
-        scaled_last_data = scaler.transform(last_data)
+        return np.sum(weights ** 2)
 
-        X_test = []
-        X_test.append(scaled_last_data)
-        X_test = np.array(X_test)
-        
-        predicted_scaled = model.predict(X_test)
-        predicted = scaler.inverse_transform(predicted_scaled)
-        
-        # Ensure the length matches the number of future steps requested
-        future_returns = predicted[0][:steps] if len(predicted[0]) >= steps else predicted[0]
-        return future_returns
+    def sharpe_ratio_objective(self, weights):
+        """
+        Objective function to maximize the Sharpe Ratio.
 
-# Helper Functions
-def extract_ticker(asset_string):
-    """
-    Extract ticker symbol from asset string.
-    """
-    return asset_string.split(' - ')[0].strip() if ' - ' in asset_string else asset_string.strip()
+        Parameters:
+        - weights (ndarray): Portfolio weights.
 
-# Streamlit App
-def main():
-    st.title("📈 Portfolio Optimization with Advanced Features")
+        Returns:
+        - negative_sharpe (float): Negative Sharpe Ratio (since we minimize).
+        """
+        _, _, sharpe = self.portfolio_stats(weights)
+        return -sharpe  # Negative because we minimize
 
-    # Define preset universes
-    universe_options = {
-        'Tech Giants': ['AAPL - Apple', 'MSFT - Microsoft', 'GOOGL - Alphabet', 'AMZN - Amazon', 'META - Meta Platforms', 'TSLA - Tesla', 'NVDA - NVIDIA', 'ADBE - Adobe', 'INTC - Intel', 'CSCO - Cisco'],
-        'Finance Leaders': ['JPM - JPMorgan Chase', 'BAC - Bank of America', 'WFC - Wells Fargo', 'C - Citigroup', 'GS - Goldman Sachs', 'MS - Morgan Stanley', 'AXP - American Express', 'BLK - BlackRock', 'SCHW - Charles Schwab', 'USB - U.S. Bancorp'],
-        'Healthcare Majors': ['JNJ - Johnson & Johnson', 'PFE - Pfizer', 'UNH - UnitedHealth', 'MRK - Merck', 'ABBV - AbbVie', 'ABT - Abbott', 'TMO - Thermo Fisher Scientific', 'MDT - Medtronic', 'DHR - Danaher', 'BMY - Bristol-Myers Squibb'],
-        'Custom': []
-    }
+    def optimize_sharpe_ratio(self):
+        """
+        Optimizes portfolio weights to maximize the Sharpe Ratio.
 
-    universe_choice = st.selectbox("Select an asset universe:", options=list(universe_options.keys()), index=0)
+        Returns:
+        - opt_weights (ndarray): Optimized portfolio weights.
+        """
+        num_assets = len(self.tickers)
+        initial_weights = np.ones(num_assets) / num_assets
+        bounds = tuple((0, 1) for _ in range(num_assets))
+        constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
 
-    if universe_choice == 'Custom':
-        custom_tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):")
-        ticker_list = [ticker.strip() for ticker in custom_tickers.split(",") if ticker.strip()]
-        if not ticker_list:
-            st.error("Please enter at least one ticker.")
-            st.stop()
+        result = minimize(self.sharpe_ratio_objective, initial_weights,
+                          method='SLSQP', bounds=bounds, constraints=constraints)
+
+        return result.x if result.success else initial_weights
+
+    def risk_parity_objective(self, weights):
+        """
+        Objective function to achieve Risk Parity (equal risk contribution).
+
+        Parameters:
+        - weights (ndarray): Portfolio weights.
+
+        Returns:
+        - objective (float): Sum of squared differences from equal risk contribution.
+        """
+        portfolio_variance = np.dot(weights.T, np.dot(self.returns.cov() * 252, weights))
+        marginal_contrib = np.dot(self.returns.cov() * 252, weights)
+        risk_contrib = weights * marginal_contrib
+        risk_parity = risk_contrib / np.sqrt(portfolio_variance)
+        target = 1 / len(weights)
+        return np.sum((risk_parity - target) ** 2)
+
+    def optimize_risk_parity(self):
+        """
+        Optimizes portfolio weights to achieve Risk Parity.
+
+        Returns:
+        - opt_weights (ndarray): Optimized portfolio weights.
+        """
+        num_assets = len(self.tickers)
+        initial_weights = np.ones(num_assets) / num_assets
+        bounds = tuple((0, 1) for _ in range(num_assets))
+        constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
+
+        result = minimize(self.risk_parity_objective, initial_weights,
+                          method='SLSQP', bounds=bounds, constraints=constraints)
+
+        return result.x if result.success else initial_weights
+
+# Streamlit UI
+st.title("📈 Portfolio Optimization with Comprehensive Risk Management")
+
+# Sidebar for User Inputs
+st.sidebar.header("User Inputs")
+
+# User inputs for the optimization process
+tickers = st.sidebar.text_input(
+    "Enter stock tickers separated by commas (e.g., AAPL, MSFT, TSLA):",
+    value="AAPL, MSFT, TSLA"
+)
+start_date = st.sidebar.date_input("Start Date", value=pd.to_datetime("2023-01-01"))
+end_date = st.sidebar.date_input("End Date", value=pd.to_datetime("2023-12-31"))
+risk_free_rate = st.sidebar.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1)
+
+# Optimization Type Selection
+optimization_type = st.sidebar.selectbox(
+    "Choose Optimization Type",
+    ["Maximize Sharpe Ratio", "Risk Parity"]
+)
+
+# Button to Trigger Optimization
+if st.sidebar.button("Optimize Portfolio"):
+    if not tickers:
+        st.error("Please enter at least one ticker.")
     else:
-        selected_universe_assets = st.multiselect("Select assets to add to My Portfolio:", universe_options[universe_choice])
-        ticker_list = [extract_ticker(asset) for asset in selected_universe_assets] if selected_universe_assets else []
-
-    # Session state for portfolio
-    if 'my_portfolio' not in st.session_state:
-        st.session_state['my_portfolio'] = []
-
-    # Update 'My Portfolio' with selected assets
-    if ticker_list:
-        updated_portfolio = st.session_state['my_portfolio'] + [ticker for ticker in ticker_list if ticker not in st.session_state['my_portfolio']]
-        st.session_state['my_portfolio'] = updated_portfolio
-
-    # Display 'My Portfolio'
-    st.subheader("📁 My Portfolio")
-    if st.session_state['my_portfolio']:
-        st.write(", ".join(st.session_state['my_portfolio']))
-    else:
-        st.write("No assets added yet.")
-
-    # Portfolio Optimization Section
-    st.header("🔧 Optimize Your Portfolio")
-
-    # Date Inputs
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        start_date = st.date_input("Start Date", value=datetime(2024, 1, 1), max_value=datetime.today())
-    with col2:
-        end_date = st.date_input("End Date", value=datetime.today(), max_value=datetime.today())
-    with col3:
-        # Risk-Free Rate Input
-        risk_free_rate = st.number_input("Enter the risk-free rate (in %):", value=2.0, step=0.1) / 100
-
-    # Train LSTM Button under Start Date
-    if st.button("Train LSTM Model for Future Returns Prediction"):
-        if not st.session_state['my_portfolio']:
-            st.error("Please add at least one asset to your portfolio before training the LSTM model.")
-            st.stop()
-
-        try:
-            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
+        with st.spinner("Fetching data and optimizing portfolio..."):
+            # Initialize Portfolio Optimizer
+            optimizer = PortfolioOptimizer(tickers, start_date, end_date, risk_free_rate)
             optimizer.fetch_data()
 
-            # Prepare data for LSTM
-            X, y, scaler = optimizer.prepare_data_for_lstm()
-            model = optimizer.train_lstm_model(X, y, epochs=10, batch_size=32)
-
-            st.success("LSTM model trained successfully!")
-
-            # Predict future returns for the next 30 days
-            future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-            future_dates = pd.date_range(end_date, periods=len(future_returns)).to_pydatetime().tolist()
-
-            # Plot future predictions in a popup window
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.plot(future_dates, future_returns, label="Predicted Returns", color='blue')
-            ax.set_xlabel("Date", fontsize=10)
-            ax.set_ylabel("Predicted Returns", fontsize=10)
-            ax.set_title("Future Return Predictions (Next 30 Days)", fontsize=12)
-            ax.legend(fontsize=10)
-            plt.tight_layout()
-            st.pyplot(fig)
-
-            # Button to explain what the plot means
-            if st.button("More Information on LSTM"):
-                explanation = """
-                **Explanation of Predicted Returns:**
-                The LSTM model is used to predict future stock returns based on historical price data. 
-                The graph displays the expected changes in returns for the next 30 days. The model captures trends and seasonality, 
-                but it is important to understand that predictions have inherent uncertainty, especially due to market volatility. 
-                Use this information as an additional tool to make decisions rather than a definitive future outlook.
-                """
-                st.markdown(explanation)
-
-        except ValueError as ve:
-            st.error(str(ve))
-        except Exception as e:
-            logger.exception("An error occurred during LSTM training or prediction.")
-            st.error(f"An error occurred: {e}")
-
-    # Investment Strategy Options
-    investment_strategy = st.radio(
-        "Choose your Investment Strategy:",
-        ("Risk-free Investment", "Profit-focused Investment")
-    )
-
-    # Specific Target Return Slider
-    specific_target_return = st.slider(
-        "Select a specific target return (in %)", 
-        min_value=-5.0, max_value=20.0, value=5.0, step=0.1
-    ) / 100
-
-    # Optimize Button
-    if st.button("📈 Optimize Portfolio"):
-
-        if not st.session_state['my_portfolio']:
-            st.error("Please add at least one asset to your portfolio before optimization.")
-            st.stop()
-
-        if start_date >= end_date:
-            st.error("Start date must be earlier than end date.")
-            st.stop()
-
-        try:
-            clean_tickers = [ticker for ticker in st.session_state['my_portfolio']]
-            optimizer = PortfolioOptimizer(clean_tickers, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate)
-            # Fetch data and update tickers in case some are dropped
-            updated_tickers = optimizer.fetch_data()
-
-            if investment_strategy == "Risk-free Investment":
-                # Apply denoising and clustering (this is a placeholder for Black-Litterman model implementation with denoising)
-                optimal_weights = optimizer.min_volatility(specific_target_return)
-                st.markdown("**Details:** You selected a 'Risk-free Investment' strategy, aiming for minimal risk exposure while attempting to achieve the specified target return.", unsafe_allow_html=True)
+            # Check if data was fetched successfully
+            if optimizer.returns is None or optimizer.returns.empty:
+                st.error("Failed to fetch data. Please check the tickers and date range.")
             else:
-                # Apply clustering and backtesting (this is a placeholder for Black-Litterman model implementation with backtesting)
-                optimal_weights = optimizer.min_volatility(specific_target_return)
-                st.markdown("**Details:** You selected a 'Profit-focused Investment' strategy, aiming for maximum potential returns with an acceptance of higher risk.", unsafe_allow_html=True)
+                # Denoise Returns
+                optimizer.denoise_returns()
 
-            portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+                # Fetch News
+                news = optimizer.fetch_news()
 
-            allocation = pd.DataFrame({
-                "Asset": updated_tickers,
-                "Weight": np.round(optimal_weights, 4)
-            })
-            allocation = allocation[allocation['Weight'] > 0].reset_index(drop=True)
+                # Display News for Each Ticker
+                st.header("📰 Latest News")
+                for ticker, articles in news.items():
+                    if articles:
+                        st.subheader(f"Top News for {ticker}")
+                        for article in articles:
+                            st.markdown(f"• [{article['title']}]({article['url']}) - *{article['source']['name']}*")
+                    else:
+                        st.subheader(f"No recent news found for {ticker}.")
 
-            st.subheader(f"Optimal Portfolio Allocation (Target Return: {specific_target_return*100:.2f}%)")
-            st.dataframe(allocation)
+                # Perform Optimization
+                if optimization_type == "Maximize Sharpe Ratio":
+                    opt_weights = optimizer.optimize_sharpe_ratio()
+                elif optimization_type == "Risk Parity":
+                    opt_weights = optimizer.optimize_risk_parity()
 
-            st.subheader("📊 Portfolio Performance Metrics")
-            metrics = {
-                "Expected Annual Return": portfolio_return * 100,
-                "Annual Volatility (Risk)": portfolio_volatility * 100,
-                "Sharpe Ratio": sharpe_ratio
-            }
-            metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-            st.table(metrics_df)
+                # Calculate Portfolio Statistics
+                annual_return, annual_volatility, sharpe_ratio = optimizer.portfolio_stats(opt_weights)
+                var_95 = optimizer.value_at_risk(opt_weights, confidence_level=0.95)
+                cvar_95 = optimizer.conditional_value_at_risk(opt_weights, confidence_level=0.95)
+                max_dd = optimizer.maximum_drawdown(opt_weights)
+                hhi = optimizer.herfindahl_hirschman_index(opt_weights)
 
-            # Visuals
-            st.subheader("📊 Visual Analysis")
-            # Pie Chart for Allocation
-            fig1, ax1 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            ax1.pie(allocation['Weight'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10, 'fontname': 'Calibri'})
-            ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-            st.pyplot(fig1)
+                # Display Portfolio Weights
+                st.header("📊 Optimized Portfolio Weights")
+                weights_df = pd.DataFrame({
+                    'Ticker': optimizer.tickers,
+                    'Weight (%)': np.round(opt_weights * 100, 2)
+                }).sort_values(by='Weight (%)', ascending=False)
+                st.table(weights_df.set_index('Ticker'))
 
-            # Bar Chart for Expected Annual Return, Volatility, and Sharpe Ratio
-            fig2, ax2 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            bars = metrics_df.plot(kind='bar', legend=False, ax=ax2, color=['skyblue'])
-            for p in bars.patches:
-                ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2, p.get_height()),
-                             ha='center', va='bottom', fontsize=10)
-            plt.xticks(rotation=0, fontsize=10)
-            plt.title("Portfolio Performance Metrics", fontsize=12)
-            plt.ylabel("Value (%)", fontsize=10)
-            st.pyplot(fig2)
+                # Display Risk Metrics
+                st.header("📈 Portfolio Risk Metrics")
+                st.write(f"**Annual Return:** {annual_return:.2%}")
+                st.write(f"**Annual Volatility:** {annual_volatility:.2%}")
+                st.write(f"**Sharpe Ratio:** {sharpe_ratio:.2f}")
+                st.write(f"**95% Value at Risk (VaR):** {var_95:.2%}")
+                st.write(f"**95% Conditional Value at Risk (CVaR):** {cvar_95:.2%}")
+                st.write(f"**Maximum Drawdown:** {max_dd:.2%}")
+                st.write(f"**Herfindahl-Hirschman Index (HHI):** {hhi:.4f}")
 
-            # Heatmap for Correlation Matrix
-            st.subheader("📈 Asset Correlation Heatmap")
-            correlation_matrix = optimizer.returns.corr()
-            fig3, ax3 = plt.subplots(figsize=(5, 2))  # Reduce the size of the plot
-            sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
-            plt.title("Asset Correlation Heatmap", fontsize=10)
-            st.pyplot(fig3)
+                # Display Portfolio Composition Pie Chart
+                fig = px.pie(weights_df, names='Ticker', values='Weight (%)',
+                             title='Portfolio Composition')
+                st.plotly_chart(fig)
 
-        except ValueError as ve:
-            st.error(str(ve))
-        except Exception as e:
-            logger.exception("An unexpected error occurred during optimization.")
-            st.error(f"An unexpected error occurred: {e}")
+                # Display Risk Metrics Bar Chart
+                metrics = {
+                    'Annual Return (%)': annual_return * 100,
+                    'Annual Volatility (%)': annual_volatility * 100,
+                    'Sharpe Ratio': sharpe_ratio,
+                    '95% VaR (%)': var_95 * 100,
+                    '95% CVaR (%)': cvar_95 * 100,
+                    'Maximum Drawdown (%)': max_dd * 100,
+                    'HHI': hhi
+                }
+                metrics_df = pd.DataFrame(list(metrics.items()), columns=['Metric', 'Value'])
+                fig_metrics = px.bar(metrics_df, x='Metric', y='Value', title='Risk Metrics',
+                                     text='Value')
+                st.plotly_chart(fig_metrics)
 
-if __name__ == "__main__":
-    main()
+                # Display Clusters
+                clusters = optimizer.cluster_assets()
+                st.header("📂 Asset Clusters")
+                cluster_df = pd.DataFrame({
+                    'Ticker': optimizer.tickers,
+                    'Cluster': clusters
+                }).sort_values(by='Cluster')
+                st.write(cluster_df)
+
+                # Optional: Display Cluster Visualization using PCA
+                pca = PCA(n_components=2)
+                principal_components = pca.fit_transform(optimizer.returns.T)
+                cluster_fig = px.scatter(x=principal_components[:, 0],
+                                         y=principal_components[:, 1],
+                                         color=clusters.astype(str),
+                                         hover_data=[optimizer.tickers],
+                                         title='Asset Clusters Visualization (PCA)')
+                st.plotly_chart(cluster_fig)
+
+                st.success("Portfolio optimization completed successfully!")
+
