@@ -49,7 +49,7 @@ translations = {
         "target_return": "Select a specific target return (in %)",
         "train_lstm": "Train LSTM Model for Future Returns Prediction",
         "more_info_lstm": "ℹ️ More Information on LSTM",
-        "optimize_portfolio": "Optimize Portfolio",
+        "optimize_portfolio": "Base Portfolio - assets equally split",
         "optimize_sharpe": "Optimize for Highest Sharpe Ratio",
         "compare_portfolios": "Compare Sharpe vs Base",
         "portfolio_analysis": "🔍 Portfolio Analysis & Optimization Results",
@@ -122,7 +122,7 @@ translations = {
         "target_return": "特定の目標リターンを選択してください（%）",
         "train_lstm": "将来のリターン予測のためにLSTMモデルを訓練",
         "more_info_lstm": "ℹ️ LSTMに関する詳細情報",
-        "optimize_portfolio": "ポートフォリオを最適化",
+        "optimize_portfolio": "Base Portfolio - assets equally split",
         "optimize_sharpe": "シャープレシオ最大化のために最適化",
         "compare_portfolios": "シャープ vs ベースを比較",
         "portfolio_analysis": "🔍 ポートフォリオ分析と最適化結果",
@@ -190,6 +190,7 @@ class PortfolioOptimizer:
         self.end_date = end_date
         self.risk_free_rate = risk_free_rate
         self.returns = None
+        self.benchmark_returns = None
 
     def fetch_data(self):
         """
@@ -217,6 +218,24 @@ class PortfolioOptimizer:
         logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
         return self.tickers
 
+    def fetch_benchmark_data(self, benchmark_ticker='^GSPC'):
+        """
+        Fetch benchmark (e.g., S&P 500) data.
+        """
+        logger.info(f"Fetching benchmark data for ticker: {benchmark_ticker}")
+        benchmark_data = yf.download(
+            benchmark_ticker, start=self.start_date, end=self.end_date, progress=False
+        )["Adj Close"]
+        
+        if benchmark_data.empty:
+            logger.error("No benchmark data fetched.")
+            raise ValueError("No benchmark data fetched. Please check the date range.")
+        
+        benchmark_returns = benchmark_data.pct_change().dropna()
+        self.benchmark_returns = benchmark_returns
+        logger.info("Fetched benchmark returns.")
+        return benchmark_returns
+
     def portfolio_stats(self, weights):
         """
         Calculate portfolio return, volatility, and Sharpe ratio.
@@ -231,8 +250,44 @@ class PortfolioOptimizer:
         
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
-        sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
+        sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility if portfolio_volatility != 0 else 0
         return portfolio_return, portfolio_volatility, sharpe_ratio
+
+    def sortino_ratio(self, weights, target=0):
+        """
+        Calculate the Sortino Ratio for the portfolio.
+        """
+        weights = np.array(weights)
+        if len(weights) != len(self.tickers):
+            raise ValueError("Weights array length does not match the number of tickers.")
+        
+        # Ensure weights sum to 1
+        weights = weights / np.sum(weights)
+        
+        portfolio_return = np.dot(weights, self.returns.mean()) * 252
+        downside_returns = self.returns.copy()
+        downside_returns[self.returns > target] = 0
+        downside_deviation = np.sqrt(np.mean(downside_returns ** 2)) * np.sqrt(252)
+        
+        sortino = (portfolio_return - self.risk_free_rate) / downside_deviation if downside_deviation != 0 else 0
+        return sortino
+
+    def calmar_ratio(self, weights):
+        """
+        Calculate the Calmar Ratio for the portfolio.
+        """
+        weights = np.array(weights)
+        if len(weights) != len(self.tickers):
+            raise ValueError("Weights array length does not match the number of tickers.")
+        
+        # Ensure weights sum to 1
+        weights = weights / np.sum(weights)
+        
+        portfolio_return = np.dot(weights, self.returns.mean()) * 252
+        max_drawdown = self.maximum_drawdown(weights)
+        
+        calmar = (portfolio_return - self.risk_free_rate) / abs(max_drawdown) if max_drawdown != 0 else 0
+        return calmar
 
     def value_at_risk(self, weights, confidence_level=0.95):
         """
@@ -296,7 +351,7 @@ class PortfolioOptimizer:
             logger.warning(f"Optimization failed: {result.message}")
             return initial_weights  # Fallback to equal weights
 
-    def min_volatility(self, target_return, max_weight=0.3):
+    def optimize_min_volatility(self, target_return, max_weight=0.3):
         """
         Optimize portfolio with added weight constraints for minimum volatility.
         """
@@ -325,6 +380,36 @@ class PortfolioOptimizer:
             # Return an equal weight portfolio as a fallback
             return np.ones(num_assets) / num_assets
 
+    def beta_alpha(self, weights, benchmark_ticker='^GSPC'):
+        """
+        Calculate Beta and Alpha of the portfolio relative to the benchmark.
+        """
+        weights = np.array(weights)
+        if len(weights) != len(self.tickers):
+            raise ValueError("Weights array length does not match the number of tickers.")
+        
+        # Ensure weights sum to 1
+        weights = weights / np.sum(weights)
+        
+        portfolio_returns = self.returns.dot(weights)
+        
+        # Fetch benchmark data
+        benchmark_returns = self.fetch_benchmark_data(benchmark_ticker)
+        
+        # Align the dates
+        aligned_portfolio, aligned_benchmark = portfolio_returns.align(benchmark_returns, join='inner')
+        
+        cov = np.cov(aligned_portfolio, aligned_benchmark)[0][1]
+        var = np.var(aligned_benchmark)
+        beta = cov / var if var != 0 else 0
+        
+        # Calculate alpha
+        portfolio_annual_return = aligned_portfolio.mean() * 252
+        benchmark_annual_return = aligned_benchmark.mean() * 252
+        alpha = portfolio_annual_return - (self.risk_free_rate + beta * (benchmark_annual_return - self.risk_free_rate))
+        
+        return beta, alpha
+
     def prepare_data_for_lstm(self):
         """
         Prepare data for LSTM model.
@@ -343,7 +428,7 @@ class PortfolioOptimizer:
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
 
-        if not X_train or not y_train:
+        if len(X_train) == 0 or len(y_train) == 0:
             raise ValueError("Not enough data to create training samples. Please adjust the date range or add more data.")
 
         X_train, y_train = np.array(X_train), np.array(y_train)
@@ -491,6 +576,50 @@ def analyze_sharpe(sharpe):
     else:
         return "Poor. A Sharpe Ratio below 0.5 indicates that your portfolio may not be generating adequate returns for the level of risk taken. Consider diversifying your assets or adjusting your investment strategy."
 
+def analyze_sortino(sortino):
+    """
+    Analyze Sortino Ratio.
+    """
+    if sortino > 1:
+        return "Excellent Sortino Ratio! Your portfolio is generating high returns relative to downside risk."
+    elif 0.5 < sortino <= 1:
+        return "Average Sortino Ratio. Your portfolio returns are acceptable considering downside volatility."
+    else:
+        return "Poor Sortino Ratio. Consider strategies to reduce downside risk or improve returns."
+
+def analyze_calmar(calmar):
+    """
+    Analyze Calmar Ratio.
+    """
+    if calmar > 0.5:
+        return "Excellent Calmar Ratio! High return per unit of drawdown risk."
+    elif 0.3 < calmar <= 0.5:
+        return "Good Calmar Ratio. Solid return relative to drawdown risk."
+    else:
+        return "Poor Calmar Ratio. Consider strategies to improve return or reduce drawdown."
+
+def analyze_beta(beta):
+    """
+    Analyze Beta.
+    """
+    if beta > 1:
+        return "High Beta: Your portfolio is significantly more volatile than the benchmark."
+    elif 0.5 < beta <= 1:
+        return "Moderate Beta: Portfolio volatility is comparable to the benchmark."
+    else:
+        return "Low Beta: Your portfolio is less volatile than the benchmark."
+
+def analyze_alpha(alpha):
+    """
+    Analyze Alpha.
+    """
+    if alpha > 0:
+        return "Positive Alpha: Portfolio is outperforming the benchmark."
+    elif alpha == 0:
+        return "Neutral Alpha: Portfolio is performing in line with the benchmark."
+    else:
+        return "Negative Alpha: Portfolio is underperforming the benchmark."
+
 def display_metrics_table(metrics, lang):
     """
     Display metrics in a structured table.
@@ -514,10 +643,10 @@ def display_metrics_table(metrics, lang):
             "max_drawdown": analyze_max_drawdown,
             "hhi": analyze_hhi,
             "sharpe_ratio": analyze_sharpe,
-            "sortino_ratio": analyze_sharpe,  # Assuming similar feedback
-            "calmar_ratio": analyze_sharpe,   # Assuming similar feedback
-            "beta": analyze_sharpe,           # Assuming similar feedback
-            "alpha": analyze_sharpe            # Assuming similar feedback
+            "sortino_ratio": analyze_sortino,
+            "calmar_ratio": analyze_calmar,
+            "beta": analyze_beta,
+            "alpha": analyze_alpha
         }.get(key, lambda x: "")
         
         analysis = analysis_func(value)
@@ -580,18 +709,10 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
 
     comparison_df = pd.DataFrame(comparison_data)
 
-    # Highlight better values in green
-    def highlight_better(row):
-        if row['Better'] == "Optimized":
-            return ['background-color: lightgreen']*4
-        elif row['Better'] == "Base":
-            return ['background-color: lightgreen']*4
-        else:
-            return ['']*4
+    # Remove background color
+    comparison_df = comparison_df.style.apply(lambda x: ['']*len(x), axis=1)
 
-    comparison_df = comparison_df.style.apply(highlight_better, axis=1)
-
-    st.markdown("<h3>📊 Comparison: Sharpe vs Base Portfolio</h3>", unsafe_allow_html=True)
+    st.markdown("<h3>Comparison: Sharpe vs Base Portfolio</h3>", unsafe_allow_html=True)
     st.table(comparison_df)
 
     # Recommendation
@@ -785,7 +906,7 @@ def main():
                     if specific_target_return is None:
                         st.error("Please select a target return for Risk-free Investment strategy.")
                         st.stop()
-                    optimal_weights = optimizer.min_volatility(specific_target_return)
+                    optimal_weights = optimizer.optimize_min_volatility(specific_target_return)
                     details = "Details: You selected a 'Risk-free Investment' strategy, aiming for minimal risk exposure while attempting to achieve the specified target return."
                 else:
                     # Optimize for Sharpe Ratio
@@ -793,6 +914,9 @@ def main():
                     details = "Details: You selected a 'Profit-focused Investment' strategy, aiming for maximum potential returns with an acceptance of higher risk."
 
                 portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+                sortino_ratio = optimizer.sortino_ratio(optimal_weights)
+                calmar_ratio = optimizer.calmar_ratio(optimal_weights)
+                beta, alpha = optimizer.beta_alpha(optimal_weights)
                 var_95 = optimizer.value_at_risk(optimal_weights, confidence_level=0.95)
                 cvar_95 = optimizer.conditional_value_at_risk(optimal_weights, confidence_level=0.95)
                 max_dd = optimizer.maximum_drawdown(optimal_weights)
@@ -816,13 +940,13 @@ def main():
                     "max_drawdown": max_dd,
                     "hhi": hhi,
                     "sharpe_ratio": sharpe_ratio,
-                    "sortino_ratio": optimizer.sharpe_ratio_objective(optimal_weights),  # Placeholder
-                    "calmar_ratio": optimizer.sharpe_ratio_objective(optimal_weights),   # Placeholder
-                    "beta": 0.0,  # Placeholder
-                    "alpha": 0.0   # Placeholder
+                    "sortino_ratio": sortino_ratio,
+                    "calmar_ratio": calmar_ratio,
+                    "beta": beta,
+                    "alpha": alpha
                 }
 
-                # Update base portfolio metrics if strategy is base
+                # Update session state
                 if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
                     st.session_state['base_portfolio_metrics'] = metrics
                 else:
@@ -848,7 +972,7 @@ def main():
                     # Bar Chart for Performance Metrics
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
-                        "Expected Annual Return (%)": portfolio_return * 100,
+                        "Expected\nAnnual Return (%)": portfolio_return * 100,
                         "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
@@ -895,6 +1019,9 @@ def main():
                 # Optimize for Highest Sharpe Ratio
                 optimal_weights = optimizer.optimize_sharpe_ratio()
                 portfolio_return, portfolio_volatility, sharpe_ratio = optimizer.portfolio_stats(optimal_weights)
+                sortino_ratio = optimizer.sortino_ratio(optimal_weights)
+                calmar_ratio = optimizer.calmar_ratio(optimal_weights)
+                beta, alpha = optimizer.beta_alpha(optimal_weights)
                 var_95 = optimizer.value_at_risk(optimal_weights, confidence_level=0.95)
                 cvar_95 = optimizer.conditional_value_at_risk(optimal_weights, confidence_level=0.95)
                 max_dd = optimizer.maximum_drawdown(optimal_weights)
@@ -907,7 +1034,7 @@ def main():
                 allocation = allocation[allocation['Weight (%)'] > 0].reset_index(drop=True)
 
                 # Display Allocation
-                st.subheader("🔑 Optimal Portfolio Allocation (Highest Sharpe Ratio)")
+                st.subheader("🔑 Detailed Metrics for Highest Sharpe Ratio Portfolio")
                 st.dataframe(allocation.style.format({"Weight (%)": "{:.2f}"}))
 
                 # Collect all metrics
@@ -917,18 +1044,54 @@ def main():
                     "max_drawdown": max_dd,
                     "hhi": hhi,
                     "sharpe_ratio": sharpe_ratio,
-                    "sortino_ratio": 0.0,  # Placeholder
-                    "calmar_ratio": 0.0,    # Placeholder
-                    "beta": 0.0,             # Placeholder
-                    "alpha": 0.0             # Placeholder
+                    "sortino_ratio": sortino_ratio,
+                    "calmar_ratio": calmar_ratio,
+                    "beta": beta,
+                    "alpha": alpha
                 }
 
-                # Update optimized portfolio metrics
+                # Update session state
                 st.session_state['optimized_portfolio_metrics'] = metrics
 
-                # Display Performance Metrics in Table Form
-                st.subheader(get_translated_text(lang, "performance_metrics"))
-                display_metrics_table(metrics, lang)
+                # Display Performance Metrics in Table Form with Analysis Column
+                st.subheader("🔍 Detailed Metrics for Highest Sharpe Ratio Portfolio")
+                metric_display = []
+                for key, value in metrics.items():
+                    display_key = get_translated_text(lang, key)
+                    if key in ["hhi"]:
+                        display_value = f"{value:.4f}"
+                    elif key in ["beta", "alpha"]:
+                        display_value = f"{value:.2f}"
+                    elif key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio"]:
+                        display_value = f"{value:.2f}"
+                    else:
+                        display_value = f"{value:.2%}"
+                    
+                    # Get analysis
+                    analysis_func = {
+                        "var": analyze_var,
+                        "cvar": analyze_cvar,
+                        "max_drawdown": analyze_max_drawdown,
+                        "hhi": analyze_hhi,
+                        "sharpe_ratio": analyze_sharpe,
+                        "sortino_ratio": analyze_sortino,
+                        "calmar_ratio": analyze_calmar,
+                        "beta": analyze_beta,
+                        "alpha": analyze_alpha
+                    }.get(key, lambda x: "")
+                    
+                    analysis = analysis_func(value)
+                    metric_display.append({
+                        "Metric": display_key,
+                        "Value": display_value,
+                        "Analysis": analysis
+                    })
+                
+                metrics_df = pd.DataFrame.from_dict(metric_display)
+                st.table(metrics_df.style.set_properties(**{
+                    'text-align': 'left',
+                    'padding': '5px'
+                }))
 
                 # Display Visuals
                 st.subheader(get_translated_text(lang, "visual_analysis"))
@@ -946,7 +1109,7 @@ def main():
                     # Bar Chart for Performance Metrics
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
-                        "Expected Annual Return (%)": portfolio_return * 100,
+                        "Expected\nAnnual Return (%)": portfolio_return * 100,
                         "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
@@ -984,9 +1147,8 @@ def main():
                 # Plot Efficient Frontier
                 fig4, ax4 = plt.subplots(figsize=(10, 6))
                 scatter = ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
-                sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
-                plt.colorbar(scatter, label='Sharpe Ratio')
                 ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
+                plt.colorbar(scatter, label='Sharpe Ratio')
                 ax4.set_xlabel('Annual Volatility (Risk)')
                 ax4.set_ylabel('Expected Annual Return')
                 ax4.set_title('Efficient Frontier')
@@ -1003,46 +1165,50 @@ def main():
                     "Expected Annual Return (%)": max_sharpe_ret * 100,
                     "Annual Volatility\n(Risk) (%)": max_sharpe_vol * 100,
                     "Sharpe Ratio": sharpe_ratios[max_sharpe_idx],
+                    "Sortino Ratio": optimizer.sortino_ratio(weights_record[max_sharpe_idx]),
+                    "Calmar Ratio": optimizer.calmar_ratio(weights_record[max_sharpe_idx]),
+                    "Beta": optimizer.beta_alpha(weights_record[max_sharpe_idx])[0],
+                    "Alpha": optimizer.beta_alpha(weights_record[max_sharpe_idx])[1],
                     "Value at Risk (VaR)": optimizer.value_at_risk(weights_record[max_sharpe_idx], confidence_level=0.95),
                     "Conditional Value at Risk (CVaR)": optimizer.conditional_value_at_risk(weights_record[max_sharpe_idx], confidence_level=0.95),
                     "Maximum Drawdown": optimizer.maximum_drawdown(weights_record[max_sharpe_idx]),
                     "Herfindahl-Hirschman Index (HHI)": optimizer.herfindahl_hirschman_index(weights_record[max_sharpe_idx])
                 }
                 detailed_metrics_df = pd.DataFrame.from_dict(detailed_metrics, orient='index', columns=['Value'])
+
+                # Add Analysis Column
+                analysis_column = []
+                for key, value in detailed_metrics.items():
+                    if key == "Expected Annual Return (%)":
+                        analysis_column.append("")  # No analysis
+                    elif key == "Annual Volatility\n(Risk) (%)":
+                        analysis_column.append("")  # No analysis
+                    elif key == "Sharpe Ratio":
+                        analysis_column.append(analyze_sharpe(value))
+                    elif key == "Sortino Ratio":
+                        analysis_column.append(analyze_sortino(value))
+                    elif key == "Calmar Ratio":
+                        analysis_column.append(analyze_calmar(value))
+                    elif key == "Beta":
+                        analysis_column.append(analyze_beta(value))
+                    elif key == "Alpha":
+                        analysis_column.append(analyze_alpha(value))
+                    elif key == "Value at Risk (VaR)":
+                        analysis_column.append(analyze_var(value))
+                    elif key == "Conditional Value at Risk (CVaR)":
+                        analysis_column.append(analyze_cvar(value))
+                    elif key == "Maximum Drawdown":
+                        analysis_column.append(analyze_max_drawdown(value))
+                    elif key == "Herfindahl-Hirschman Index (HHI)":
+                        analysis_column.append(analyze_hhi(value))
+                    else:
+                        analysis_column.append("")
+
+                detailed_metrics_df['Analysis'] = analysis_column
+
                 st.table(detailed_metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations and Feedback
-                st.subheader("📊 Detailed Performance Metrics")
-                for key in ["Expected Annual Return (%)", "Annual Volatility\n(Risk) (%)", "Sharpe Ratio", "Value at Risk (VaR)", "Conditional Value at Risk (CVaR)", "Maximum Drawdown", "Herfindahl-Hirschman Index (HHI)"]:
-                    value = detailed_metrics.get(key, None)
-                    if value is not None:
-                        display_value = f"{value:.2f}" if key in ["Sharpe Ratio"] else (f"{value:.2f}%" if "%" in key else f"{value:.4f}")
-                        st.markdown(f"**{key}:** {display_value}")
-
-                        # Provide feedback based on the metric
-                        if key == "Value at Risk (VaR)":
-                            feedback = analyze_var(value)
-                        elif key == "Conditional Value at Risk (CVaR)":
-                            feedback = analyze_cvar(value)
-                        elif key == "Maximum Drawdown":
-                            feedback = analyze_max_drawdown(value)
-                        elif key == "Herfindahl-Hirschman Index (HHI)":
-                            feedback = analyze_hhi(value)
-                        elif key == "Sharpe Ratio":
-                            feedback = analyze_sharpe(value)
-                        else:
-                            feedback = ""
-
-                        if feedback:
-                            st.markdown(f"**Analysis:** {feedback}")
-
                 st.success(get_translated_text(lang, "explanation_sharpe_button"))
-
-            except ValueError as ve:
-                st.error(str(ve))
-            except Exception as e:
-                logger.exception("An unexpected error occurred during Sharpe Ratio optimization.")
-                st.error(f"{e}")
 
     # Compare Portfolios Section
     if compare_portfolios_btn:
