@@ -362,23 +362,33 @@ def main():
             get_translated_text(lang, "custom_tickers"),
             value=""
         )
-        ticker_list = [ticker.strip() for ticker in custom_tickers.split(",") if ticker.strip()]
     else:
         selected_universe_assets = st.sidebar.multiselect(
             get_translated_text(lang, "add_portfolio"),
             universe_options[universe_choice],
-            default=universe_options[universe_choice][:5]  # Default selection
+            default=[]  # No default selection to prevent auto-adding
         )
-        ticker_list = [extract_ticker(asset) for asset in selected_universe_assets] if selected_universe_assets else []
 
-    # Session state for portfolio
+    # Initialize Session State for Portfolio
     if 'my_portfolio' not in st.session_state:
         st.session_state['my_portfolio'] = []
 
-    # Update 'My Portfolio' with selected assets
-    if ticker_list:
-        updated_portfolio = st.session_state['my_portfolio'] + [ticker for ticker in ticker_list if ticker not in st.session_state['my_portfolio']]
-        st.session_state['my_portfolio'] = updated_portfolio
+    # Add Selected Universe Assets to Portfolio
+    if universe_choice != 'Custom':
+        if selected_universe_assets:
+            if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
+                new_tickers = [extract_ticker(asset) for asset in selected_universe_assets]
+                # Add only unique tickers
+                st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
+                st.sidebar.success(get_translated_text(lang, "add_portfolio") + " " + get_translated_text(lang, "my_portfolio"))
+    else:
+        # Add Custom Tickers to Portfolio
+        if custom_tickers:
+            if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
+                new_tickers = [ticker.strip().upper() for ticker in custom_tickers.split(",") if ticker.strip()]
+                # Add only unique tickers
+                st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
+                st.sidebar.success(get_translated_text(lang, "add_portfolio") + " " + get_translated_text(lang, "my_portfolio"))
 
     # Display 'My Portfolio' in Sidebar
     st.sidebar.subheader(get_translated_text(lang, "my_portfolio"))
@@ -518,7 +528,7 @@ def main():
                 metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
                 st.table(metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations
+                # Display Risk Metrics with Explanations and Feedback
                 st.subheader(get_translated_text(lang, "performance_metrics"))
                 # Loop through specific risk metrics to display with explanations
                 for key in [get_translated_text(lang, "var"), get_translated_text(lang, "cvar"),
