@@ -1010,38 +1010,6 @@ def main():
                 detailed_metrics_df = pd.DataFrame.from_dict(detailed_metrics, orient='index', columns=['Value'])
                 st.table(detailed_metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
 
-                # Display Risk Metrics with Explanations and Feedback
-                st.subheader("📊 Detailed Performance Metrics")
-                for key in ["Expected \n Annual Return (%)", "Annual Volatility\n(Risk) (%)", "Sharpe Ratio", "Value at Risk (VaR)", "Conditional Value at Risk (CVaR)", "Maximum Drawdown", "Herfindahl-Hirschman Index (HHI)"]:
-                    value = detailed_metrics.get(key, None)
-                    if value is not None:
-                        display_value = f"{value:.2f}" if key in ["Sharpe Ratio"] else (f"{value:.2f}%" if "%" in key else f"{value:.4f}")
-                        st.markdown(f"**{key}:** {display_value}")
-
-                        # Provide feedback based on the metric
-                        if key == "Value at Risk (VaR)":
-                            feedback = analyze_var(value)
-                        elif key == "Conditional Value at Risk (CVaR)":
-                            feedback = analyze_cvar(value)
-                        elif key == "Maximum Drawdown":
-                            feedback = analyze_max_drawdown(value)
-                        elif key == "Herfindahl-Hirschman Index (HHI)":
-                            feedback = analyze_hhi(value)
-                        elif key == "Sharpe Ratio":
-                            feedback = analyze_sharpe(value)
-                        else:
-                            feedback = ""
-
-                        if feedback:
-                            st.markdown(f"**Analysis:** {feedback}")
-
-                st.success(get_translated_text(lang, "explanation_sharpe_button"))
-
-            except ValueError as ve:
-                st.error(str(ve))
-            except Exception as e:
-                logger.exception("An unexpected error occurred during Sharpe Ratio optimization.")
-                st.error(f"{e}")
 
     # Compare Portfolios Section
     if compare_portfolios_btn:
