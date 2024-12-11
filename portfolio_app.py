@@ -145,6 +145,24 @@ class PortfolioOptimizer:
 
         self.tickers = list(data.columns)
         self.returns = data.pct_change().dropna()
+                # Benchmark Input
+        st.sidebar.markdown("**Optional: Benchmark for Beta/Alpha Calculations**")
+        st.sidebar.write("""
+        A benchmark is a reference point to compare your portfolio's performance against. 
+        By providing a benchmark ticker, the application can calculate metrics like Beta and Alpha, 
+        which show how your portfolio behaves relative to a standard market index. 
+        
+        For example:
+        - **^GSPC**: S&P 500 Index (commonly used as a benchmark for US equities)
+        - **^NDX**: NASDAQ 100 Index
+        - **^DJI**: Dow Jones Industrial Average
+        - **^RUT**: Russell 2000
+        - **SPY**: An ETF that tracks the S&P 500
+        
+        If you do not provide a benchmark, Beta and Alpha will not be computed.
+        """)
+        
+        benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="")
 
         # If benchmark is provided, fetch and compute benchmark returns
         if self.benchmark_ticker:
