@@ -145,24 +145,6 @@ class PortfolioOptimizer:
 
         self.tickers = list(data.columns)
         self.returns = data.pct_change().dropna()
-                # Benchmark Input
-        st.sidebar.markdown("**Optional: Benchmark for Beta/Alpha Calculations**")
-        st.sidebar.write("""
-        A benchmark is a reference point to compare your portfolio's performance against. 
-        By providing a benchmark ticker, the application can calculate metrics like Beta and Alpha, 
-        which show how your portfolio behaves relative to a standard market index. 
-        
-        For example:
-        - **^GSPC**: S&P 500 Index (commonly used as a benchmark for US equities)
-        - **^NDX**: NASDAQ 100 Index
-        - **^DJI**: Dow Jones Industrial Average
-        - **^RUT**: Russell 2000
-        - **SPY**: An ETF that tracks the S&P 500
-        
-        If you do not provide a benchmark, Beta and Alpha will not be computed.
-        """)
-        
-        benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="")
 
         # If benchmark is provided, fetch and compute benchmark returns
         if self.benchmark_ticker:
@@ -184,33 +166,30 @@ class PortfolioOptimizer:
         portfolio_return = np.dot(weights, mu)
         sharpe = (portfolio_return - self.risk_free_rate) / sigma if sigma != 0 else 0.0
 
-        # Sortino Ratio: Use only negative returns for downside
+        # Sortino Ratio
         downside_returns = self.returns[self.returns < 0].dropna()
         if not downside_returns.empty:
             downside_std = np.sqrt(np.dot(weights.T, np.dot(downside_returns.cov() * 252, weights)))
         else:
-            downside_std = 0.0001  # Avoid division by zero
+            downside_std = 0.0001
         sortino = (portfolio_return - self.risk_free_rate) / downside_std
 
-        # Calmar Ratio: Annualized return / Max Drawdown (absolute)
-        # Compute max drawdown:
+        # Calmar Ratio
         portfolio_cum = (1 + self.returns.dot(weights)).cumprod()
         peak = portfolio_cum.cummax()
-        drawdown = (portfolio_cum - peak)/peak
+        drawdown = (portfolio_cum - peak) / peak
         max_dd = drawdown.min()
         calmar = portfolio_return / abs(max_dd) if max_dd != 0 else 0.0
 
-        # Beta and Alpha (if benchmark provided)
+        # Beta and Alpha
         if self.benchmark_returns is not None:
-            # Merge benchmark returns with portfolio returns
             portfolio_ret_series = self.returns.dot(weights)
             merged = pd.concat([portfolio_ret_series, self.benchmark_returns], axis=1).dropna()
             merged.columns = ['portfolio', 'benchmark']
             cov_matrix = merged.cov()
-            beta = cov_matrix.loc['portfolio','benchmark'] / cov_matrix.loc['benchmark','benchmark']
-            # Alpha = (Portfolio Return - Risk-free) - Beta*(Benchmark Return - Risk-free)
-            benchmark_ann_return = self.benchmark_returns.mean()*252
-            alpha = (portfolio_return - self.risk_free_rate) - beta*(benchmark_ann_return - self.risk_free_rate)
+            beta = cov_matrix.loc['portfolio', 'benchmark'] / cov_matrix.loc['benchmark', 'benchmark']
+            benchmark_ann_return = self.benchmark_returns.mean() * 252
+            alpha = (portfolio_return - self.risk_free_rate) - beta * (benchmark_ann_return - self.risk_free_rate)
         else:
             beta = None
             alpha = None
@@ -250,10 +229,7 @@ class PortfolioOptimizer:
         bounds = tuple((0, 1) for _ in range(num_assets))
         constraints = {'type': 'eq', 'fun': lambda x: np.sum(x)-1}
         result = minimize(self.sharpe_ratio_objective, initial_weights, method='SLSQP', bounds=bounds, constraints=constraints)
-        if result.success:
-            return result.x
-        else:
-            return initial_weights
+        return result.x if result.success else initial_weights
 
     def min_volatility(self, target_return, max_weight=0.3):
         num_assets = len(self.tickers)
@@ -265,10 +241,7 @@ class PortfolioOptimizer:
         init_guess = [1./num_assets]*num_assets
 
         result = minimize(lambda w: self.portfolio_stats(w)['volatility'], init_guess, method='SLSQP', bounds=bounds, constraints=constraints)
-        if result.success:
-            return result.x
-        else:
-            return np.ones(num_assets)/num_assets
+        return result.x if result.success else np.ones(num_assets)/num_assets
 
     def prepare_data_for_lstm(self):
         scaler = MinMaxScaler(feature_range=(0,1))
@@ -333,7 +306,6 @@ class PortfolioOptimizer:
             results[3,i] = self.herfindahl_hirschman_index(weights)
         return results, weights_record
 
-# Additional Analysis: Display metrics conditionally
 def display_metrics(metrics, lang):
     df_data = []
     metric_names = {
@@ -350,7 +322,6 @@ def display_metrics(metrics, lang):
         "hhi": get_translated_text(lang, "hhi")
     }
 
-    # Filter out metrics that are 0.0 or None (except return, volatility, sharpe)
     for k, v in metrics.items():
         if k in ["return", "volatility"] or (v is not None and v != 0.0):
             display_name = metric_names.get(k, k)
@@ -374,18 +345,18 @@ def main():
 
     st.title(get_translated_text(lang, "title"))
 
+    # User Inputs - Universe selection
     st.sidebar.header(get_translated_text(lang, "user_inputs"))
-
     universe_options = {
         'Tech Giants': ['AAPL - Apple','MSFT - Microsoft','GOOGL - Alphabet','AMZN - Amazon','META - Meta','TSLA - Tesla','NVDA - NVIDIA'],
         'Finance Leaders': ['JPM - JPMorgan','BAC - Bank of America','WFC - Wells Fargo','C - Citigroup'],
         'Custom': []
     }
-
     universe_choice = st.sidebar.selectbox(get_translated_text(lang, "select_universe"), list(universe_options.keys()))
 
+    # Portfolio building
     if universe_choice == 'Custom':
-        custom_tickers = st.sidebar.text_input(get_translated_text(lang, "custom_tickers"), value="")
+        custom_tickers = st.sidebar.text_input(get_translated_text(lang, "custom_tickers"), value="", key="custom_tickers_input")
     else:
         selected_universe_assets = st.sidebar.multiselect(
             get_translated_text(lang, "add_portfolio"),
@@ -396,17 +367,14 @@ def main():
     if 'my_portfolio' not in st.session_state:
         st.session_state['my_portfolio'] = []
 
-    # Add selected assets
     if universe_choice != 'Custom':
-        if selected_universe_assets:
-            if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
-                new_tickers = [extract_ticker(a) for a in selected_universe_assets]
-                st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
+        if selected_universe_assets and st.sidebar.button(get_translated_text(lang, "add_portfolio"), key="add_universe"):
+            new_tickers = [extract_ticker(a) for a in selected_universe_assets]
+            st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
     else:
-        if custom_tickers:
-            if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
-                new_tickers = [t.strip().upper() for t in custom_tickers.split(",") if t.strip()]
-                st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
+        if custom_tickers and st.sidebar.button(get_translated_text(lang, "add_portfolio"), key="add_custom"):
+            new_tickers = [t.strip().upper() for t in custom_tickers.split(",") if t.strip()]
+            st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
 
     st.sidebar.subheader(get_translated_text(lang, "my_portfolio"))
     if st.session_state['my_portfolio']:
@@ -414,6 +382,7 @@ def main():
     else:
         st.sidebar.write(get_translated_text(lang, "no_assets"))
 
+    # Optimization parameters
     st.sidebar.header(get_translated_text(lang, "optimization_parameters"))
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024,1,1), max_value=datetime.today())
     end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today())
@@ -429,20 +398,32 @@ def main():
     else:
         specific_target_return = None
 
-    # Benchmark input for Beta and Alpha:
+    # Benchmark explanation and input for Beta/Alpha
     st.sidebar.markdown("**Optional Benchmark for Beta/Alpha:**")
-    benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="")
+    st.sidebar.write("""
+    A benchmark is a reference point to compare your portfolio's performance against.
+    By providing a benchmark ticker, the application can calculate metrics like Beta and Alpha,
+    which show how your portfolio behaves relative to a standard market index.
 
+    For example:
+    - **^GSPC**: S&P 500 Index (commonly used for US equities)
+    - **^NDX**: NASDAQ 100 Index
+    - **^DJI**: Dow Jones Industrial Average
+    - **^RUT**: Russell 2000
+    - **SPY**: An ETF tracking the S&P 500
+
+    If you do not provide a benchmark, Beta and Alpha will not be computed.
+    """)
+    benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="", key="benchmark_input")
+
+    # Action buttons
+    train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"), key="train_lstm_btn")
+    optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"), key="optimize_portfolio_btn")
+    optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"), key="optimize_sharpe_btn")
+
+    st.header(get_translated_text(lang, "portfolio_analysis"))
 
     # Train LSTM
-    train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"))
-    # Optimize Portfolio
-    optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"))
-    # Optimize Sharpe
-    optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"))
-    
-    st.header(get_translated_text(lang, "portfolio_analysis"))
-    
     if train_lstm:
         st.info("Training LSTM model, please wait...")
         if not st.session_state['my_portfolio']:
@@ -460,7 +441,7 @@ def main():
                 X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm()
                 model = optimizer.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
                 mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
-    
+
                 st.success(get_translated_text(lang, "success_lstm"))
                 eval_metrics = {
                     "MAE": mae,
@@ -468,37 +449,44 @@ def main():
                     "R²": r2
                 }
                 st.table(pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value']).style.format("{:.4f}"))
-    
-                # Provide interpretation of the metrics
+
                 st.markdown("""
                 **Interpretation:**
                 - **MAE & RMSE:** Lower values indicate predictions closer to actual values.
                 - **R² Score:** Closer to 1.0 indicates more variance explained by the model.
                 """)
-    
+
                 # Performance Analysis
                 if r2 > 0.9 and rmse < 0.01:
-                    st.success("**Excellent Performance:** The model’s predictions are very close to the actual values. It explains most of the variance in the data.")
+                    st.success("**Excellent Performance:** The model’s predictions are very close to the actual values.")
                 elif r2 > 0.75 and rmse < 0.05:
-                    st.info("**Good Performance:** The model predicts reasonably well. It’s reliable, but further improvements may still yield better accuracy.")
+                    st.info("**Good Performance:** The model predicts reasonably well. Consider fine-tuning for even better accuracy.")
                 elif r2 > 0.5:
-                    st.warning("**Moderate Performance:** The model captures some patterns, but there’s significant room for improvement. Consider adding more data or tuning the model.")
+                    st.warning("**Moderate Performance:** The model captures some patterns, but there’s room for improvement.")
                 else:
-                    st.error("**Poor Performance:** The model does not predict well. Consider revisiting the model architecture, feature set, or training parameters.")
-    
+                    st.error("**Poor Performance:** The model does not predict well.")
+                    st.markdown("""
+                    **Recommendations for Improvement:**
+                    - **Data Quality & Quantity:** More historical data or better-quality data.
+                    - **Feature Engineering:** Add technical indicators, economic data, or sentiment data.
+                    - **Hyperparameter Tuning:** Adjust LSTM units, learning rate, or epochs via grid/random search.
+                    - **Look-back Window:** Experiment with different historical periods.
+                    - **Model Architecture:** Try more layers, GRU, Transformers, or add dropout for regularization.
+                    - **Scaling & Normalization:** Ensure features are properly scaled. Try different scalers.
+                    """)
+
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
                 future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B')
                 pred_df = pd.DataFrame({'Date': future_dates, 'Predicted Returns': future_returns})
-    
                 fig, ax = plt.subplots(figsize=(10,4))
                 ax.plot(pred_df['Date'], pred_df['Predicted Returns'], color='blue', label='Predicted Returns')
                 ax.legend()
                 plt.xticks(rotation=45)
                 st.pyplot(fig)
-    
+
                 with st.expander(get_translated_text(lang, "more_info_lstm")):
                     st.markdown(get_translated_text(lang, "explanation_lstm"))
-    
+
                 # Attempt to auto minimize sidebar after training LSTM
                 hide_sidebar = """
                 <script>
@@ -510,10 +498,11 @@ def main():
                 </script>
                 """
                 st.markdown(hide_sidebar, unsafe_allow_html=True)
-    
+
             except Exception as e:
                 st.error(str(e))
 
+    # Optimize Portfolio
     if optimize_portfolio:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
@@ -521,7 +510,13 @@ def main():
             st.error(get_translated_text(lang, "error_date"))
         else:
             try:
-                optimizer = PortfolioOptimizer(st.session_state['my_portfolio'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate, benchmark_ticker if benchmark_ticker else None)
+                optimizer = PortfolioOptimizer(
+                    st.session_state['my_portfolio'],
+                    start_date.strftime('%Y-%m-%d'),
+                    end_date.strftime('%Y-%m-%d'),
+                    risk_free_rate,
+                    benchmark_ticker if benchmark_ticker else None
+                )
                 optimizer.fetch_data()
 
                 if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
@@ -546,7 +541,6 @@ def main():
                 st.subheader(get_translated_text(lang, "allocation_title").format(target=target_display))
                 st.dataframe(allocation)
 
-                # Consolidate metrics
                 metrics = {
                     "return": stats['return'],
                     "volatility": stats['volatility'],
@@ -606,7 +600,6 @@ def main():
                 ax4.set_title(get_translated_text(lang, "correlation_heatmap"))
                 st.pyplot(fig4)
 
-                # Compute and plot Efficient Frontier with a wait message
                 st.text("Plotting Efficient Frontier curve, please wait...")
                 results, weights_record = optimizer.compute_efficient_frontier()
                 vol = results[0]
@@ -627,28 +620,29 @@ def main():
                 ax5.legend()
                 st.pyplot(fig5)
 
-                # Scenario Testing
                 st.subheader("🔧 Scenario Testing")
-                shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0)
-                if st.button("Test Scenario"):
+                shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0, key="shock_input")
+                if st.button("Test Scenario", key="test_scenario"):
                     shock_factor = 1 + shock/100
                     shocked_returns = optimizer.returns * shock_factor
-                    # Recalculate stats under scenario
                     scenario_ret = shocked_returns.dot(optimal_weights)
                     scenario_annual_ret = scenario_ret.mean()*252
                     scenario_vol = scenario_ret.std()*np.sqrt(252)
                     scenario_sharpe = (scenario_annual_ret - optimizer.risk_free_rate)/scenario_vol if scenario_vol!=0 else 0
                     st.write(f"Under a {shock}% shock, the annual return is {scenario_annual_ret*100:.2f}% and Sharpe Ratio is {scenario_sharpe:.2f}.")
-                
+
                 st.success(get_translated_text(lang, "success_optimize"))
 
-                # Additional Recommendations Section
                 st.markdown("### Additional Recommendations:")
-                st.markdown("- Consider adding a benchmark ticker (already provided) to calculate meaningful Beta and Alpha.\n- Explore more advanced scenario testing methods.\n- Incorporate historical event stress testing or Monte Carlo simulations.\n- Add a feature to track portfolio performance over user-defined future periods with predicted returns.")
+                st.markdown("- Consider adding a benchmark ticker for Beta/Alpha calculations.")
+                st.markdown("- Explore more advanced scenario testing methods.")
+                st.markdown("- Incorporate historical event stress testing or Monte Carlo simulations.")
+                st.markdown("- Add a feature to track portfolio performance over user-defined future periods with predicted returns.")
 
             except Exception as e:
                 st.error(str(e))
 
+    # Optimize Sharpe
     if optimize_sharpe:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
@@ -690,7 +684,6 @@ def main():
                 st.subheader(get_translated_text(lang, "performance_metrics"))
                 display_metrics(metrics, lang)
 
-                # Portfolio Tracking Over Time
                 st.subheader("📈 Portfolio Tracking Over Time")
                 port_cum = (1 + optimizer.returns.dot(optimal_weights)).cumprod()
                 fig2, ax2 = plt.subplots(figsize=(10,4))
@@ -731,7 +724,6 @@ def main():
                 ax4.set_title(get_translated_text(lang, "correlation_heatmap"))
                 st.pyplot(fig4)
 
-                # Efficient Frontier
                 st.text("Plotting Efficient Frontier curve, please wait...")
                 results, weights_record = optimizer.compute_efficient_frontier()
                 vol = results[0]
@@ -751,10 +743,9 @@ def main():
                 ax5.legend()
                 st.pyplot(fig5)
 
-                # Scenario Testing
                 st.subheader("🔧 Scenario Testing")
-                shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0)
-                if st.button("Test Scenario"):
+                shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0, key="shock_input_sharpe")
+                if st.button("Test Scenario", key="test_scenario_sharpe"):
                     shock_factor = 1 + shock/100
                     shocked_returns = optimizer.returns * shock_factor
                     scenario_ret = shocked_returns.dot(optimal_weights)
@@ -765,11 +756,10 @@ def main():
 
                 st.success(get_translated_text(lang, "success_optimize"))
 
-                # Additional Recommendations
                 st.markdown("### Additional Recommendations:")
                 st.markdown("- A benchmark has been added for Beta and Alpha calculations. If no benchmark is provided, these metrics are omitted.")
-                st.markdown("- For more advanced scenario testing, consider applying different shocks to individual assets or using historical market stress periods.")
-                st.markdown("- Portfolio tracking over time is now displayed. Consider adding forward-looking projections using predicted returns for scenario analysis.")
+                st.markdown("- For more advanced scenario testing, consider applying different shocks or historical market stress periods.")
+                st.markdown("- Consider forward-looking projections using predicted returns for scenario analysis.")
 
             except Exception as e:
                 st.error(str(e))
