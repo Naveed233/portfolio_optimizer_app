@@ -996,31 +996,5 @@ def main():
                 # Display Analysis for Highest Sharpe Ratio Portfolio
                 st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
 
-                # Display the optimized portfolio metrics again for clarity
-                st.subheader("🔍 Detailed Metrics for Highest Sharpe Ratio Portfolio")
-                detailed_metrics = {
-                    "Expected Annual Return (%)": max_sharpe_ret * 100,
-                    "Annual Volatility\n(Risk) (%)": max_sharpe_vol * 100,
-                    "Sharpe Ratio": sharpe_ratios[max_sharpe_idx],
-                    "Value at Risk (VaR)": optimizer.value_at_risk(weights_record[max_sharpe_idx], confidence_level=0.95),
-                    "Conditional Value at Risk (CVaR)": optimizer.conditional_value_at_risk(weights_record[max_sharpe_idx], confidence_level=0.95),
-                    "Maximum Drawdown": optimizer.maximum_drawdown(weights_record[max_sharpe_idx]),
-                    "Herfindahl-Hirschman Index (HHI)": optimizer.herfindahl_hirschman_index(weights_record[max_sharpe_idx])
-                }
-                detailed_metrics_df = pd.DataFrame.from_dict(detailed_metrics, orient='index', columns=['Value'])
-                st.table(detailed_metrics_df.style.format({"Value": lambda x: f"{x:.2f}"}))
-
-
-    # Compare Portfolios Section
-    if compare_portfolios_btn:
-        if st.session_state['base_portfolio_metrics'] is None or st.session_state['optimized_portfolio_metrics'] is None:
-            st.error("Please optimize both the base portfolio and the highest Sharpe Ratio portfolio before comparing.")
-        else:
-            base_metrics = st.session_state['base_portfolio_metrics']
-            optimized_metrics = st.session_state['optimized_portfolio_metrics']
-            compare_portfolios(base_metrics, optimized_metrics, lang)
-
- 
-
 if __name__ == "__main__":
     main()
