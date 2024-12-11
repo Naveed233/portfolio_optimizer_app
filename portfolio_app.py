@@ -9,10 +9,9 @@ from datetime import datetime
 import seaborn as sns
 import tensorflow as tf
 import random
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ translations = {
         "calmar_ratio": "Calmar Ratio",
         "beta": "Beta",
         "alpha": "Alpha",
-        "explanation_lstm": "**Explanation of LSTM Model:**\nLong Short-Term Memory (LSTM) is a type of artificial neural network used in machine learning. It is particularly effective for predicting sequences and time series data, such as stock returns. LSTM models can remember information over long periods, making them suitable for capturing trends and patterns in historical financial data. However, while LSTM can provide valuable insights, it's important to note that predictions are not guarantees and should be used in conjunction with other analysis methods.",
+        "explanation_lstm": "**Explanation of LSTM Model:**\nLong Short-Term Memory (LSTM) is a type of artificial neural network used in machine learning. It is effective for predicting sequences and time series data. LSTMs can remember information over long periods, capturing trends and patterns in historical financial data. However, these predictions are not guarantees and should be combined with other analysis methods.",
         "success_optimize": "Portfolio optimization completed successfully!"
     },
     'ja': {
@@ -111,7 +110,7 @@ translations = {
         "calmar_ratio": "カルマーレシオ",
         "beta": "ベータ",
         "alpha": "アルファ",
-        "explanation_lstm": "**LSTMモデルの説明：**\nLSTMは、時系列データ予測に適したニューラルネットワークであり、過去の傾向を捉えて将来のパターンを推定できます。ただし、これは保証ではなく、他の分析手法と併用することが望まれます。",
+        "explanation_lstm": "**LSTMモデルの説明：**\nLSTMは時系列データ予測に適したニューラルネットワークであり、過去の傾向を捉えて将来を推定できます。ただし、これは保証ではなく、他の分析手法と併用することが望まれます。",
         "success_optimize": "ポートフォリオの最適化が正常に完了しました！"
     }
 }
@@ -146,7 +145,6 @@ class PortfolioOptimizer:
         self.tickers = list(data.columns)
         self.returns = data.pct_change().dropna()
 
-        # If benchmark is provided, fetch and compute benchmark returns
         if self.benchmark_ticker:
             benchmark_data = yf.download(self.benchmark_ticker, start=self.start_date, end=self.end_date, progress=False)["Adj Close"]
             benchmark_data.dropna(inplace=True)
@@ -166,7 +164,6 @@ class PortfolioOptimizer:
         portfolio_return = np.dot(weights, mu)
         sharpe = (portfolio_return - self.risk_free_rate) / sigma if sigma != 0 else 0.0
 
-        # Sortino Ratio
         downside_returns = self.returns[self.returns < 0].dropna()
         if not downside_returns.empty:
             downside_std = np.sqrt(np.dot(weights.T, np.dot(downside_returns.cov() * 252, weights)))
@@ -174,14 +171,12 @@ class PortfolioOptimizer:
             downside_std = 0.0001
         sortino = (portfolio_return - self.risk_free_rate) / downside_std
 
-        # Calmar Ratio
         portfolio_cum = (1 + self.returns.dot(weights)).cumprod()
         peak = portfolio_cum.cummax()
         drawdown = (portfolio_cum - peak) / peak
         max_dd = drawdown.min()
         calmar = portfolio_return / abs(max_dd) if max_dd != 0 else 0.0
 
-        # Beta and Alpha
         if self.benchmark_returns is not None:
             portfolio_ret_series = self.returns.dot(weights)
             merged = pd.concat([portfolio_ret_series, self.benchmark_returns], axis=1).dropna()
@@ -239,15 +234,17 @@ class PortfolioOptimizer:
         )
         bounds = tuple((0, max_weight) for _ in range(num_assets))
         init_guess = [1./num_assets]*num_assets
-
         result = minimize(lambda w: self.portfolio_stats(w)['volatility'], init_guess, method='SLSQP', bounds=bounds, constraints=constraints)
         return result.x if result.success else np.ones(num_assets)/num_assets
 
-    def prepare_data_for_lstm(self):
-        scaler = MinMaxScaler(feature_range=(0,1))
+    def prepare_data_for_lstm(self, look_back=60, scaler_type="MinMaxScaler"):
+        if scaler_type == "MinMaxScaler":
+            scaler = MinMaxScaler(feature_range=(0,1))
+        else:
+            scaler = StandardScaler()
+
         scaled_data = scaler.fit_transform(self.returns.values)
         X,y = [], []
-        look_back = 60
         for i in range(look_back,len(scaled_data)):
             X.append(scaled_data[i-look_back:i])
             y.append(scaled_data[i])
@@ -260,14 +257,18 @@ class PortfolioOptimizer:
         X_test, y_test = np.array(X_test), np.array(y_test)
         return X_train, y_train, X_test, y_test, scaler
 
-    def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
+    def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32, lstm_units=50, lstm_layers=2, dropout_rate=0.0):
         seed_value = 42
         np.random.seed(seed_value)
         tf.random.set_seed(seed_value)
         random.seed(seed_value)
+
         model = tf.keras.Sequential()
-        model.add(tf.keras.layers.LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
-        model.add(tf.keras.layers.LSTM(units=50))
+        for i in range(lstm_layers):
+            return_sequences = True if i < lstm_layers - 1 else False
+            model.add(tf.keras.layers.LSTM(units=lstm_units, return_sequences=return_sequences, input_shape=(X_train.shape[1], X_train.shape[2])))
+            if dropout_rate > 0:
+                model.add(tf.keras.layers.Dropout(dropout_rate))
         model.add(tf.keras.layers.Dense(units=X_train.shape[2]))
         model.compile(optimizer='adam', loss='mean_squared_error')
         model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
@@ -325,27 +326,24 @@ def display_metrics(metrics, lang):
     for k, v in metrics.items():
         if k in ["return", "volatility"] or (v is not None and v != 0.0):
             display_name = metric_names.get(k, k)
-            if k == "return" or k == "volatility":
+            if k in ["return", "volatility"]:
                 display_val = f"{v*100:.2f}%"
             elif k in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha", "beta"]:
                 display_val = f"{v:.2f}"
             else:
                 display_val = f"{v:.2f}"
-
             df_data.append({"Metric": display_name, "Value": display_val})
 
     df = pd.DataFrame(df_data)
     st.table(df)
 
 def main():
-    # Language Selection
     st.sidebar.header("🌐 Language Selection")
     selected_language = st.sidebar.selectbox("Select Language:", options=list(languages.keys()), index=0)
     lang = languages[selected_language]
 
     st.title(get_translated_text(lang, "title"))
 
-    # User Inputs - Universe selection
     st.sidebar.header(get_translated_text(lang, "user_inputs"))
     universe_options = {
         'Tech Giants': ['AAPL - Apple','MSFT - Microsoft','GOOGL - Alphabet','AMZN - Amazon','META - Meta','TSLA - Tesla','NVDA - NVIDIA'],
@@ -354,7 +352,6 @@ def main():
     }
     universe_choice = st.sidebar.selectbox(get_translated_text(lang, "select_universe"), list(universe_options.keys()))
 
-    # Portfolio building
     if universe_choice == 'Custom':
         custom_tickers = st.sidebar.text_input(get_translated_text(lang, "custom_tickers"), value="", key="custom_tickers_input")
     else:
@@ -372,9 +369,10 @@ def main():
             new_tickers = [extract_ticker(a) for a in selected_universe_assets]
             st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
     else:
-        if custom_tickers and st.sidebar.button(get_translated_text(lang, "add_portfolio"), key="add_custom"):
-            new_tickers = [t.strip().upper() for t in custom_tickers.split(",") if t.strip()]
-            st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
+        if st.sidebar.button(get_translated_text(lang, "add_portfolio"), key="add_custom"):
+            if custom_tickers:
+                new_tickers = [t.strip().upper() for t in custom_tickers.split(",") if t.strip()]
+                st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio']+new_tickers))
 
     st.sidebar.subheader(get_translated_text(lang, "my_portfolio"))
     if st.session_state['my_portfolio']:
@@ -382,7 +380,6 @@ def main():
     else:
         st.sidebar.write(get_translated_text(lang, "no_assets"))
 
-    # Optimization parameters
     st.sidebar.header(get_translated_text(lang, "optimization_parameters"))
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024,1,1), max_value=datetime.today())
     end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today())
@@ -398,32 +395,32 @@ def main():
     else:
         specific_target_return = None
 
-    # Benchmark explanation and input for Beta/Alpha
     st.sidebar.markdown("**Optional Benchmark for Beta/Alpha:**")
     st.sidebar.write("""
-    A benchmark is a reference point to compare your portfolio's performance against.
-    By providing a benchmark ticker, the application can calculate metrics like Beta and Alpha,
-    which show how your portfolio behaves relative to a standard market index.
-
-    For example:
-    - **^GSPC**: S&P 500 Index (commonly used for US equities)
-    - **^NDX**: NASDAQ 100 Index
-    - **^DJI**: Dow Jones Industrial Average
-    - **^RUT**: Russell 2000
-    - **SPY**: An ETF tracking the S&P 500
-
-    If you do not provide a benchmark, Beta and Alpha will not be computed.
+    A benchmark is a reference point to compare your portfolio against.
+    Examples:
+    - ^GSPC: S&P 500
+    - ^NDX: NASDAQ 100
+    - ^DJI: Dow Jones Industrial Average
+    - ^RUT: Russell 2000
+    - SPY: S&P 500 ETF
     """)
     benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="", key="benchmark_input")
 
-    # Action buttons
+    look_back_window = st.sidebar.slider("LSTM Look-back Window (days)", min_value=30, max_value=120, value=60, step=10)
+    lstm_units = st.sidebar.slider("LSTM Units per layer", min_value=10, max_value=200, value=50, step=10)
+    lstm_layers = st.sidebar.selectbox("Number of LSTM Layers", options=[1, 2, 3], index=1)
+    dropout_rate = st.sidebar.slider("Dropout Rate (Regularization)", min_value=0.0, max_value=0.5, value=0.0, step=0.1)
+    epochs = st.sidebar.number_input("Training Epochs", min_value=5, max_value=100, value=10, step=5)
+    batch_size = st.sidebar.number_input("Batch Size", min_value=16, max_value=256, value=32, step=16)
+    scaler_type = st.sidebar.selectbox("Scaler Type for Data Normalization", ["MinMaxScaler", "StandardScaler"], index=0)
+
     train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"), key="train_lstm_btn")
     optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"), key="optimize_portfolio_btn")
     optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"), key="optimize_sharpe_btn")
 
     st.header(get_translated_text(lang, "portfolio_analysis"))
 
-    # Train LSTM
     if train_lstm:
         st.info("Training LSTM model, please wait...")
         if not st.session_state['my_portfolio']:
@@ -438,8 +435,19 @@ def main():
                     benchmark_ticker if benchmark_ticker else None
                 )
                 optimizer.fetch_data()
-                X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm()
-                model = optimizer.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
+                X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm(
+                    look_back=look_back_window,
+                    scaler_type=scaler_type
+                )
+                model = optimizer.train_lstm_model(
+                    X_train,
+                    y_train,
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    lstm_units=lstm_units,
+                    lstm_layers=lstm_layers,
+                    dropout_rate=dropout_rate
+                )
                 mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
 
                 st.success(get_translated_text(lang, "success_lstm"))
@@ -452,27 +460,26 @@ def main():
 
                 st.markdown("""
                 **Interpretation:**
-                - **MAE & RMSE:** Lower values indicate predictions closer to actual values.
-                - **R² Score:** Closer to 1.0 indicates more variance explained by the model.
+                - **MAE & RMSE:** Lower = closer predictions.
+                - **R² Score:** Closer to 1.0 = more variance explained.
                 """)
 
-                # Performance Analysis
                 if r2 > 0.9 and rmse < 0.01:
-                    st.success("**Excellent Performance:** The model’s predictions are very close to the actual values.")
+                    st.success("**Excellent Performance:** Predictions are very close to actual values.")
                 elif r2 > 0.75 and rmse < 0.05:
-                    st.info("**Good Performance:** The model predicts reasonably well. Consider fine-tuning for even better accuracy.")
+                    st.info("**Good Performance:** Reasonably accurate. Consider minor tuning for improvement.")
                 elif r2 > 0.5:
-                    st.warning("**Moderate Performance:** The model captures some patterns, but there’s room for improvement.")
+                    st.warning("**Moderate Performance:** Some patterns captured, but further refinement needed.")
                 else:
                     st.error("**Poor Performance:** The model does not predict well.")
                     st.markdown("""
                     **Recommendations for Improvement:**
-                    - **Data Quality & Quantity:** More historical data or better-quality data.
-                    - **Feature Engineering:** Add technical indicators, economic data, or sentiment data.
-                    - **Hyperparameter Tuning:** Adjust LSTM units, learning rate, or epochs via grid/random search.
-                    - **Look-back Window:** Experiment with different historical periods.
-                    - **Model Architecture:** Try more layers, GRU, Transformers, or add dropout for regularization.
-                    - **Scaling & Normalization:** Ensure features are properly scaled. Try different scalers.
+                    - **Data Quality & Quantity:** More historical or higher-quality data.
+                    - **Feature Engineering:** Add technical indicators, macroeconomic, or sentiment data.
+                    - **Hyperparameter Tuning:** Use grid/random search for LSTM units, layers, dropout, epochs, batch size, and learning rate.
+                    - **Look-back Window:** Try different historical periods.
+                    - **Model Architecture:** Experiment with more layers, GRU, Transformers, or dropout.
+                    - **Scaling & Normalization:** If MinMaxScaler was used, try StandardScaler, or vice versa.
                     """)
 
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
@@ -487,7 +494,6 @@ def main():
                 with st.expander(get_translated_text(lang, "more_info_lstm")):
                     st.markdown(get_translated_text(lang, "explanation_lstm"))
 
-                # Attempt to auto minimize sidebar after training LSTM
                 hide_sidebar = """
                 <script>
                 var sidebar = parent.document.querySelector('section[aria-label="sidebar"]');
@@ -502,7 +508,6 @@ def main():
             except Exception as e:
                 st.error(str(e))
 
-    # Optimize Portfolio
     if optimize_portfolio:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
@@ -558,7 +563,6 @@ def main():
                 st.subheader(get_translated_text(lang, "performance_metrics"))
                 display_metrics(metrics, lang)
 
-                # Portfolio Tracking Over Time
                 st.subheader("📈 Portfolio Tracking Over Time")
                 port_cum = (1 + optimizer.returns.dot(optimal_weights)).cumprod()
                 fig2, ax2 = plt.subplots(figsize=(10,4))
@@ -578,6 +582,7 @@ def main():
                     ax1.axis('equal')
                     ax1.set_title(get_translated_text(lang, "portfolio_composition"))
                     st.pyplot(fig1)
+
                 with col2:
                     performance_metrics = {
                         "Return (%)": stats['return']*100,
@@ -637,12 +642,11 @@ def main():
                 st.markdown("- Consider adding a benchmark ticker for Beta/Alpha calculations.")
                 st.markdown("- Explore more advanced scenario testing methods.")
                 st.markdown("- Incorporate historical event stress testing or Monte Carlo simulations.")
-                st.markdown("- Add a feature to track portfolio performance over user-defined future periods with predicted returns.")
+                st.markdown("- Consider forward-looking projections using predicted returns.")
 
             except Exception as e:
                 st.error(str(e))
 
-    # Optimize Sharpe
     if optimize_sharpe:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
@@ -650,7 +654,13 @@ def main():
             st.error(get_translated_text(lang, "error_date"))
         else:
             try:
-                optimizer = PortfolioOptimizer(st.session_state['my_portfolio'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate, benchmark_ticker if benchmark_ticker else None)
+                optimizer = PortfolioOptimizer(
+                    st.session_state['my_portfolio'],
+                    start_date.strftime('%Y-%m-%d'),
+                    end_date.strftime('%Y-%m-%d'),
+                    risk_free_rate,
+                    benchmark_ticker if benchmark_ticker else None
+                )
                 optimizer.fetch_data()
                 optimal_weights = optimizer.optimize_sharpe_ratio()
 
@@ -703,6 +713,7 @@ def main():
                     ax1.axis('equal')
                     ax1.set_title(get_translated_text(lang, "portfolio_composition"))
                     st.pyplot(fig1)
+
                 with col2:
                     performance_metrics = {
                         "Return (%)": stats['return']*100,
@@ -757,9 +768,10 @@ def main():
                 st.success(get_translated_text(lang, "success_optimize"))
 
                 st.markdown("### Additional Recommendations:")
-                st.markdown("- A benchmark has been added for Beta and Alpha calculations. If no benchmark is provided, these metrics are omitted.")
-                st.markdown("- For more advanced scenario testing, consider applying different shocks or historical market stress periods.")
-                st.markdown("- Consider forward-looking projections using predicted returns for scenario analysis.")
+                st.markdown("- Consider a benchmark for Beta/Alpha.")
+                st.markdown("- More advanced scenario testing (different shocks, historical events).")
+                st.markdown("- Monte Carlo simulations.")
+                st.markdown("- Forward-looking projections using predicted returns.")
 
             except Exception as e:
                 st.error(str(e))
