@@ -995,9 +995,10 @@ def main():
 
                 # Display Analysis for Highest Sharpe Ratio Portfolio
                 st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
-try:
-    if __name__ == "__main__":
+if __name__ == "__main__":
+    try:
         main()
-except Exception as e:
-    logger.exception("An unexpected error occurred.")
-    st.error(f"Unexpected error: {e}")
+    except Exception as e:
+        logger.exception("An unexpected error occurred.")
+        st.error(f"Unexpected error: {e}")
+
