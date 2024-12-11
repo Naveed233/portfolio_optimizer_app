@@ -415,7 +415,8 @@ def main():
     st.sidebar.markdown("**Optional Benchmark for Beta/Alpha:**")
     benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="")
 
-    # Train LSTM
+
+        # Train LSTM
     train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"))
     # Optimize Portfolio
     optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"))
@@ -423,8 +424,9 @@ def main():
     optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"))
 
     st.header(get_translated_text(lang, "portfolio_analysis"))
-
+    
     if train_lstm:
+        st.info("Training LSTM model, please wait...")
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_lstm"))
         else:
