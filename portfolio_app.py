@@ -21,6 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Language options and translations (simplified, can be expanded)
 languages = {
     'English': 'en',
     '日本語': 'ja'
@@ -67,11 +68,11 @@ translations = {
         "calmar_ratio": "Calmar Ratio",
         "beta": "Beta",
         "alpha": "Alpha",
-        "explanation_lstm": "**Explanation of LSTM Model:**\nLSTM can capture patterns in time series data. However, predictions are not guarantees. Combine with other analyses.",
+        "explanation_lstm": "**Explanation of LSTM Model:**\nLSTM can find patterns in time series data. Predictions are not guarantees. Use with other analysis methods.",
         "success_optimize": "Portfolio optimization completed successfully!"
     },
     'ja': {
-        # ... (Japanese translations as before)
+        # Add Japanese translations if needed
     }
 }
 
@@ -97,6 +98,7 @@ class PortfolioOptimizer:
         if missing_tickers:
             st.warning(f"The following tickers were not fetched: {', '.join(missing_tickers)}")
             logger.warning(f"Missing tickers: {missing_tickers}")
+
         data.dropna(axis=1, inplace=True)
         if data.empty:
             raise ValueError("No data fetched. Please check the tickers and date range.")
@@ -111,6 +113,7 @@ class PortfolioOptimizer:
                 self.benchmark_ticker = None
             else:
                 self.benchmark_returns = benchmark_data.pct_change().dropna()
+
         return self.tickers
 
     def portfolio_stats(self, weights):
@@ -276,9 +279,8 @@ def display_metrics(metrics, lang):
     }
 
     for k, v in metrics.items():
-        if v is not None:  # Ensure v is not None before comparing
-            # If v is float, safe to compare
-            if (k in ["return", "volatility"]) or (v != 0.0): 
+        if v is not None:
+            if (k in ["return", "volatility"]) or (v != 0.0):
                 display_name = metric_names.get(k, k)
                 if k in ["return", "volatility"]:
                     display_val = f"{v*100:.2f}%"
@@ -292,18 +294,47 @@ def display_metrics(metrics, lang):
     st.table(df)
 
 def main():
+    if 'my_portfolio' not in st.session_state:
+        st.session_state['my_portfolio'] = []
+
+    # Language selection
     st.sidebar.header("🌐 Language Selection")
     selected_language = st.sidebar.selectbox("Select Language:", options=list(languages.keys()), index=0)
     lang = languages[selected_language]
 
     st.title(get_translated_text(lang, "title"))
+    st.header(get_translated_text(lang, "portfolio_analysis"))
 
-    st.sidebar.header(get_translated_text(lang, "user_inputs"))
+    # Define preset universes (10 each)
+    tech_giants = [
+        'AAPL - Apple','MSFT - Microsoft','GOOGL - Alphabet','AMZN - Amazon','META - Meta',
+        'TSLA - Tesla','NVDA - NVIDIA','ADBE - Adobe','INTC - Intel','CSCO - Cisco'
+    ]
+    finance_leaders = [
+        'JPM - JPMorgan Chase','BAC - Bank of America','WFC - Wells Fargo','C - Citigroup','GS - Goldman Sachs',
+        'MS - Morgan Stanley','AXP - American Express','BLK - BlackRock','SCHW - Charles Schwab','USB - U.S. Bancorp'
+    ]
+    healthcare_majors = [
+        'JNJ - Johnson & Johnson','PFE - Pfizer','UNH - UnitedHealth','MRK - Merck','ABBV - AbbVie',
+        'ABT - Abbott','TMO - Thermo Fisher','MDT - Medtronic','DHR - Danaher','BMY - Bristol-Myers'
+    ]
+    broad_market = [
+        'SPY - S&P 500 ETF','VOO - Vanguard S&P 500','IVV - iShares Core S&P 500','VTI - Vanguard Total Stock Market',
+        'VEA - Vanguard FTSE Dev Markets','VWO - Vanguard FTSE Emerging','QQQ - Invesco QQQ','DIA - SPDR Dow Jones',
+        'GLD - SPDR Gold','EFA - iShares MSCI EAFE'
+    ]
+    # Custom (no predefined tickers, user will input)
+
     universe_options = {
-        'Tech Giants': ['AAPL - Apple','MSFT - Microsoft','GOOGL - Alphabet','AMZN - Amazon','META - Meta','TSLA - Tesla','NVDA - NVIDIA'],
-        'Finance Leaders': ['JPM - JPMorgan','BAC - Bank of America','WFC - Wells Fargo','C - Citigroup'],
+        'Tech Giants': tech_giants,
+        'Finance Leaders': finance_leaders,
+        'Healthcare Majors': healthcare_majors,
+        'Broad Market ETFs': broad_market,
         'Custom': []
     }
+
+    # Sidebar for universe selection
+    st.sidebar.header(get_translated_text(lang, "user_inputs"))
     universe_choice = st.sidebar.selectbox(get_translated_text(lang, "select_universe"), list(universe_options.keys()))
 
     if universe_choice == 'Custom':
@@ -315,9 +346,7 @@ def main():
             default=[]
         )
 
-    if 'my_portfolio' not in st.session_state:
-        st.session_state['my_portfolio'] = []
-
+    # Add to portfolio
     if universe_choice != 'Custom':
         if selected_universe_assets and st.sidebar.button(get_translated_text(lang, "add_portfolio"), key="add_universe"):
             new_tickers = [extract_ticker(a) for a in selected_universe_assets]
@@ -334,6 +363,7 @@ def main():
     else:
         st.sidebar.write(get_translated_text(lang, "no_assets"))
 
+    # Optimization parameters
     st.sidebar.header(get_translated_text(lang, "optimization_parameters"))
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024,1,1), max_value=datetime.today())
     end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today())
@@ -349,37 +379,68 @@ def main():
     else:
         specific_target_return = None
 
+    # Benchmark Ticker as Dropdown
     st.sidebar.markdown("**Optional Benchmark for Beta/Alpha:**")
-    st.sidebar.write("A benchmark is a reference point for comparison. For example:\n- ^GSPC: S&P 500\n- ^NDX: NASDAQ 100")
-    benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="", key="benchmark_input")
+    benchmark_options = {
+        'None': None,
+        'S&P 500 (^GSPC)': '^GSPC',
+        'NASDAQ 100 (^NDX)': '^NDX',
+        'Dow Jones (^DJI)': '^DJI',
+        'Russell 2000 (^RUT)': '^RUT',
+        'S&P 500 ETF (SPY)': 'SPY',
+        'Vanguard S&P 500 (VOO)': 'VOO'
+    }
+    benchmark_choice = st.sidebar.selectbox("Select a Benchmark:", list(benchmark_options.keys()), index=0)
+    benchmark_ticker = benchmark_options[benchmark_choice]
 
-    train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"), key="train_lstm_btn")
-    optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"), key="optimize_portfolio_btn")
-    optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"), key="optimize_sharpe_btn")
+    # Buttons for actions with explanations below them
+    train_lstm_button = st.sidebar.button(get_translated_text(lang, "train_lstm"), key="train_lstm_btn")
+    st.sidebar.markdown("*Train LSTM:* This will allow you to configure and train an LSTM model to predict future returns.")
 
-    st.header(get_translated_text(lang, "portfolio_analysis"))
+    optimize_portfolio_button = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"), key="optimize_portfolio_btn")
+    st.sidebar.markdown("*Optimize Portfolio:* Based on your selected strategy, this will optimize your asset allocations for minimal volatility or chosen target return.")
 
-    if train_lstm:
-        st.info("Set LSTM configuration below, then click 'Run LSTM Training' at the bottom.")
+    optimize_sharpe_button = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"), key="optimize_sharpe_btn")
+    st.sidebar.markdown("*Optimize for Highest Sharpe Ratio:* This finds a portfolio allocation that maximizes risk-adjusted returns.")
 
+    # Main page logic
+
+    # LSTM Parameter Setting & Training
+    if train_lstm_button:
+        st.info("Adjust LSTM parameters below and then click 'Run LSTM Training'")
         with st.expander("What do these LSTM settings mean?"):
             st.markdown("""
-            - **Look-back Window (days):** How many past days of data are used to predict future returns.
-            - **LSTM Units per Layer:** The number of neurons in each LSTM layer.
-            - **Number of LSTM Layers:** Stacking multiple LSTM layers can capture more complexity.
-            - **Dropout Rate:** Reduces overfitting by randomly dropping units.
-            - **Training Epochs:** How many passes over the training data to make.
-            - **Batch Size:** How many samples per update step.
-            - **Scaler Type:** Normalize data using MinMaxScaler or StandardScaler.
+            - **Look-back Window:** How many past days are used as input.
+            - **LSTM Units per Layer:** More units = more complexity.
+            - **LSTM Layers:** Multiple layers capture more complex patterns.
+            - **Dropout Rate:** Helps prevent overfitting.
+            - **Training Epochs:** Number of passes over the training data.
+            - **Batch Size:** Samples per training update.
+            - **Scaler Type:** Normalize data with MinMax or Standard scaling.
             """)
 
-        look_back_window = st.slider("LSTM Look-back Window (days)", min_value=30, max_value=120, value=60, step=10)
-        lstm_units = st.slider("LSTM Units per layer", min_value=10, max_value=200, value=50, step=10)
-        lstm_layers = st.selectbox("Number of LSTM Layers", options=[1, 2, 3], index=1)
-        dropout_rate = st.slider("Dropout Rate (Regularization)", min_value=0.0, max_value=0.5, value=0.0, step=0.1)
-        epochs = st.number_input("Training Epochs", min_value=5, max_value=100, value=10, step=5)
-        batch_size = st.number_input("Batch Size", min_value=16, max_value=256, value=32, step=16)
-        scaler_type = st.selectbox("Scaler Type for Data Normalization", ["MinMaxScaler", "StandardScaler"], index=0)
+        if 'look_back_window' not in st.session_state:
+            st.session_state['look_back_window'] = 60
+        if 'lstm_units' not in st.session_state:
+            st.session_state['lstm_units'] = 50
+        if 'lstm_layers' not in st.session_state:
+            st.session_state['lstm_layers'] = 2
+        if 'dropout_rate' not in st.session_state:
+            st.session_state['dropout_rate'] = 0.0
+        if 'epochs' not in st.session_state:
+            st.session_state['epochs'] = 10
+        if 'batch_size' not in st.session_state:
+            st.session_state['batch_size'] = 32
+        if 'scaler_type' not in st.session_state:
+            st.session_state['scaler_type'] = "MinMaxScaler"
+
+        st.session_state['look_back_window'] = st.slider("LSTM Look-back Window (days)", 30, 120, st.session_state['look_back_window'], 10)
+        st.session_state['lstm_units'] = st.slider("LSTM Units per layer", 10, 200, st.session_state['lstm_units'], 10)
+        st.session_state['lstm_layers'] = st.selectbox("Number of LSTM Layers", [1,2,3], index=[1,2,3].index(st.session_state['lstm_layers']))
+        st.session_state['dropout_rate'] = st.slider("Dropout Rate", 0.0, 0.5, st.session_state['dropout_rate'], 0.1)
+        st.session_state['epochs'] = st.number_input("Training Epochs", 5, 100, st.session_state['epochs'], 5)
+        st.session_state['batch_size'] = st.number_input("Batch Size", 16, 256, st.session_state['batch_size'],16)
+        st.session_state['scaler_type'] = st.selectbox("Scaler Type", ["MinMaxScaler", "StandardScaler"], 0 if st.session_state['scaler_type']=="MinMaxScaler" else 1)
 
         if st.button("Run LSTM Training"):
             if not st.session_state['my_portfolio']:
@@ -395,43 +456,38 @@ def main():
                     )
                     optimizer.fetch_data()
                     X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm(
-                        look_back=look_back_window,
-                        scaler_type=scaler_type
+                        look_back=st.session_state['look_back_window'],
+                        scaler_type=st.session_state['scaler_type']
                     )
                     model = optimizer.train_lstm_model(
                         X_train,
                         y_train,
-                        epochs=epochs,
-                        batch_size=batch_size,
-                        lstm_units=lstm_units,
-                        lstm_layers=lstm_layers,
-                        dropout_rate=dropout_rate
+                        epochs=st.session_state['epochs'],
+                        batch_size=st.session_state['batch_size'],
+                        lstm_units=st.session_state['lstm_units'],
+                        lstm_layers=st.session_state['lstm_layers'],
+                        dropout_rate=st.session_state['dropout_rate']
                     )
-                    mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
 
+                    mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
                     st.success(get_translated_text(lang, "success_lstm"))
-                    eval_metrics = {
-                        "MAE": mae,
-                        "RMSE": rmse,
-                        "R²": r2
-                    }
+                    eval_metrics = {"MAE": mae, "RMSE": rmse, "R²": r2}
                     st.table(pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value']).style.format("{:.4f}"))
 
                     st.markdown("""
                     **Interpretation:**
-                    - **MAE & RMSE:** Lower = closer predictions.
-                    - **R² Score:** Closer to 1.0 = more variance explained.
+                    - MAE & RMSE: Lower = closer predictions.
+                    - R²: Closer to 1.0 = better fit.
                     """)
 
-                    # Display performance feedback
                     if r2 > 0.9 and rmse < 0.01:
-                        st.success("**Excellent Performance:** Predictions are very close to actual values.")
+                        st.success("Excellent Performance: Predictions are very close to actual values.")
                     elif r2 > 0.75 and rmse < 0.05:
-                        st.info("**Good Performance:** Reasonably accurate. Try minor tweaks to improve further.")
+                        st.info("Good Performance: Reasonably accurate. Consider minor tuning.")
                     elif r2 > 0.5:
-                        st.warning("**Moderate Performance:** Some patterns captured, but further refinement needed.")
+                        st.warning("Moderate Performance: Some patterns captured. More tuning needed.")
                     else:
-                        st.error("**Poor Performance:** The model does not predict well.")
+                        st.error("Poor Performance: Model not predicting well.")
 
                     future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
                     future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B')
@@ -445,18 +501,16 @@ def main():
                     plt.xticks(rotation=45)
                     st.pyplot(fig)
 
-                    # Describe the movement of the graph
-                    st.markdown("**Graph Analysis:** The predicted returns initially decrease (negative), then rise to a peak, and subsequently decline, showing a fluctuating pattern over time.")
+                    st.markdown("**Graph Analysis:** The predicted returns show variability over time (initial decline, rise to a peak, then fall).")
 
-                    # Display LSTM recommendations focusing only on parameters the user can change
                     st.markdown("""
-                    **Recommendations for Improvement (Adjustable via App):**
-                    - **Look-back Window:** Try longer or shorter historical periods to see if accuracy improves.
-                    - **LSTM Units/Layers:** Increase units or add layers to capture more complexity, or reduce them if overfitting occurs.
-                    - **Dropout Rate:** Introduce dropout to reduce overfitting if the model seems overly fit to training data.
-                    - **Training Epochs:** Increase epochs if underfitting, or decrease if overfitting.
-                    - **Batch Size:** Adjust batch size for a balance between training speed and model performance.
-                    - **Scaler Type:** If currently using MinMaxScaler, try StandardScaler, or vice versa, to see if normalization impacts the results.
+                    **Recommendations (Adjustable Parameters):**
+                    - **Look-back Window:** Try different lengths.
+                    - **LSTM Units/Layers:** Adjust complexity.
+                    - **Dropout Rate:** Add dropout to reduce overfitting.
+                    - **Training Epochs:** Increase if underfitting, decrease if overfitting.
+                    - **Batch Size:** Adjust for better performance.
+                    - **Scaler Type:** Try MinMax or Standard to see which yields better results.
                     """)
 
                     with st.expander(get_translated_text(lang, "more_info_lstm")):
@@ -465,7 +519,8 @@ def main():
                 except Exception as e:
                     st.error(str(e))
 
-    if optimize_portfolio:
+    # Optimize Portfolio
+    if optimize_portfolio_button:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
         elif start_date >= end_date:
@@ -582,7 +637,9 @@ def main():
                 ax5.legend()
                 st.pyplot(fig5)
 
+                # Scenario Testing after optimization
                 st.subheader("🔧 Scenario Testing")
+                st.markdown("Apply a percentage shock to all assets to see how the portfolio might perform under stress.")
                 shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0, key="shock_input")
                 if st.button("Test Scenario", key="test_scenario"):
                     shock_factor = 1 + shock/100
@@ -598,7 +655,7 @@ def main():
             except Exception as e:
                 st.error(str(e))
 
-    if optimize_sharpe:
+    if optimize_sharpe_button:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
         elif start_date >= end_date:
@@ -707,6 +764,7 @@ def main():
                 st.pyplot(fig5)
 
                 st.subheader("🔧 Scenario Testing")
+                st.markdown("Apply a percentage shock to see how the optimized Sharpe portfolio performs under stress.")
                 shock = st.number_input("Apply a return shock to all assets (in %, e.g., -10 for -10%)", value=0.0, step=1.0, key="shock_input_sharpe")
                 if st.button("Test Scenario", key="test_scenario_sharpe"):
                     shock_factor = 1 + shock/100
