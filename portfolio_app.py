@@ -998,10 +998,6 @@ def main():
 try:
     if __name__ == "__main__":
         main()
-
-except ValueError as ve:
-    st.error(f"ValueError: {ve}")
 except Exception as e:
     logger.exception("An unexpected error occurred.")
     st.error(f"Unexpected error: {e}")
-
