@@ -119,16 +119,16 @@ translations = {
         "calmar_ratio": "カルマーレシオ",
         "beta": "ベータ",
         "alpha": "アルファ",
-        "explanation_lstm": "**LSTMモデルの説明：**\nLSTMは時系列データのパターンを捉えることができますが、予測は保証ではありません。他の分析方法と組み合わせてください。",
+        "explanation_lstm": "**LSTMモデルの説明：**\nLSTMは時系列データのパターンを捉えられますが、予測は保証ではありません。他の分析手法と併用してください。",
         "success_optimize": "ポートフォリオ最適化が正常に完了しました！",
         "benchmark_select": "ベンチマークを選択してください：",
         "scenario_testing": "🔧 シナリオテスト",
         "scenario_input": "全資産にリターンショックを適用（%で入力、例：-10で-10%）",
         "scenario_button": "シナリオテスト実行",
         "scenario_calculating": "シナリオテストを計算中...",
-        "train_lstm_info": "*LSTM訓練：* 将来リターン予測用のLSTMモデルを設定・訓練します。",
-        "optimize_portfolio_info": "*ポートフォリオ最適化：* 選択した戦略に基づいて資産配分を最適化します。",
-        "optimize_sharpe_info": "*最高シャープレシオ最適化：* リスク調整後リターンを最大化する配分を見つけます。"
+        "train_lstm_info": "*LSTM訓練：* 将来リターン予測用LSTMモデルを設定・訓練します。",
+        "optimize_portfolio_info": "*ポートフォリオ最適化：* 選択戦略に基づき資産配分を最適化。",
+        "optimize_sharpe_info": "*最高シャープレシオ最適化：* リスク調整後リターン最大化の配分を発見。"
     }
 }
 
@@ -136,9 +136,7 @@ def get_translated_text(lang, key):
     return translations.get(lang, translations['en']).get(key, key)
 
 def analyze_metric(lang, metric_name, value):
-    # Analysis logic
     if lang == 'ja':
-        # Japanese
         if metric_name in ["シャープレシオ", "ソルティーノレシオ", "カルマーレシオ"]:
             if value > 1.0:
                 return "良好"
@@ -184,7 +182,6 @@ def analyze_metric(lang, metric_name, value):
         else:
             return ""
     else:
-        # English
         if metric_name in ["Sharpe Ratio", "Sortino Ratio", "Calmar Ratio"]:
             if value > 1.0:
                 return "Good"
@@ -265,6 +262,7 @@ def display_metrics(metrics, lang):
 
     for k, v in metrics.items():
         if v is not None:
+            # Only display if metric is relevant
             if (k in ["return", "volatility"]) or (v != 0.0):
                 display_name = metric_labels.get(k, k)
                 if k in ["return", "volatility"]:
@@ -280,6 +278,7 @@ def display_metrics(metrics, lang):
     st.table(df.style.set_properties(**{'text-align': 'left'}))
 
 class PortfolioOptimizer:
+    # ... Same class as previously given, no changes ...
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02, benchmark_ticker=None):
         self.tickers = tickers
         self.start_date = start_date
@@ -330,7 +329,7 @@ class PortfolioOptimizer:
             cov_matrix = merged.cov()
             beta = cov_matrix.loc['portfolio','benchmark'] / cov_matrix.loc['benchmark','benchmark']
             benchmark_ann_return = self.benchmark_returns.mean()*252
-            alpha = (portfolio_return - self.risk_free_rate) - beta * (benchmark_ann_return - self.risk_free_rate)
+            alpha = (portfolio_return - self.risk_free_rate) - beta*(benchmark_ann_return - self.risk_free_rate)
         else:
             beta = None
             alpha = None
@@ -485,16 +484,16 @@ def main():
         st.sidebar.write(get_translated_text(lang, "no_assets"))
 
     st.sidebar.header(get_translated_text(lang, "optimization_parameters"))
-    start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024,1,1), max_value=datetime.today())
-    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today())
-    risk_free_rate = st.sidebar.number_input(get_translated_text(lang, "risk_free_rate"), value=2.0, step=0.1)/100
+    start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024,1,1), max_value=datetime.today(), key="start_date_input")
+    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today(), key="end_date_input")
+    risk_free_rate = st.sidebar.number_input(get_translated_text(lang, "risk_free_rate"), value=2.0, step=0.1, key="risk_free_input")/100
 
     strategy_risk_free = get_translated_text(lang, "strategy_risk_free")
     strategy_profit = get_translated_text(lang, "strategy_profit")
-    investment_strategy = st.sidebar.radio(get_translated_text(lang, "investment_strategy"), (strategy_risk_free, strategy_profit))
+    investment_strategy = st.sidebar.radio(get_translated_text(lang, "investment_strategy"), (strategy_risk_free, strategy_profit), key="investment_strategy_radio")
 
     if investment_strategy == strategy_risk_free:
-        specific_target_return = st.sidebar.slider(get_translated_text(lang, "target_return"), -5.0, 20.0, 5.0, 0.1)/100
+        specific_target_return = st.sidebar.slider(get_translated_text(lang, "target_return"), -5.0, 20.0, 5.0, 0.1, key="target_return_slider")/100
     else:
         specific_target_return = None
 
@@ -508,10 +507,9 @@ def main():
         'S&P 500 ETF (SPY)': 'SPY',
         'Vanguard S&P 500 (VOO)': 'VOO'
     }
-    benchmark_choice = st.sidebar.selectbox("", list(benchmark_options.keys()), index=0)
+    benchmark_choice = st.sidebar.selectbox("", list(benchmark_options.keys()), index=0, key="benchmark_choice_select")
     benchmark_ticker = benchmark_options[benchmark_choice]
 
-    # Buttons
     train_lstm_btn = st.sidebar.button(get_translated_text(lang, "train_lstm"), key="train_lstm_btn")
     st.sidebar.markdown(get_translated_text(lang, "train_lstm_info"))
     optimize_portfolio_btn = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"), key="optimize_portfolio_btn")
@@ -519,12 +517,14 @@ def main():
     optimize_sharpe_btn = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"), key="optimize_sharpe_btn")
     st.sidebar.markdown(get_translated_text(lang, "optimize_sharpe_info"))
 
-    # LSTM Parameter Setting & Training
+    # Only show LSTM parameters if train_lstm_btn is pressed, but do not train yet.
     if train_lstm_btn:
         st.info(get_translated_text(lang, "train_lstm") + " ...")
+
         with st.expander(get_translated_text(lang, "more_info_lstm")):
             st.markdown(get_translated_text(lang, "explanation_lstm"))
 
+        # Default values in session_state if not set
         if 'look_back_window' not in st.session_state:
             st.session_state['look_back_window'] = 60
         if 'lstm_units' not in st.session_state:
@@ -540,22 +540,33 @@ def main():
         if 'scaler_type' not in st.session_state:
             st.session_state['scaler_type'] = "MinMaxScaler"
 
-        st.session_state['look_back_window'] = st.slider("Look-back Window", 30, 120, st.session_state['look_back_window'], 10)
-        st.session_state['lstm_units'] = st.slider("LSTM Units per Layer", 10, 200, st.session_state['lstm_units'], 10)
-        st.session_state['lstm_layers'] = st.selectbox("Number of LSTM Layers", [1,2,3], index=[1,2,3].index(st.session_state['lstm_layers']))
-        st.session_state['dropout_rate'] = st.slider("Dropout Rate", 0.0, 0.5, st.session_state['dropout_rate'], 0.1)
-        st.session_state['epochs'] = st.number_input("Training Epochs", 5, 100, st.session_state['epochs'], 5)
-        st.session_state['batch_size'] = st.number_input("Batch Size", 16, 256, st.session_state['batch_size'],16)
-        st.session_state['scaler_type'] = st.selectbox("Scaler Type", ["MinMaxScaler", "StandardScaler"], 0 if st.session_state['scaler_type']=="MinMaxScaler" else 1)
+        # Just set parameters, no training yet
+        st.session_state['look_back_window'] = st.slider("Look-back Window", 30, 120, st.session_state['look_back_window'], 10, key="look_back_slider")
+        st.session_state['lstm_units'] = st.slider("LSTM Units per Layer", 10, 200, st.session_state['lstm_units'], 10, key="units_slider")
+        st.session_state['lstm_layers'] = st.selectbox("Number of LSTM Layers", [1,2,3], index=[1,2,3].index(st.session_state['lstm_layers']), key="layers_select")
+        st.session_state['dropout_rate'] = st.slider("Dropout Rate", 0.0, 0.5, st.session_state['dropout_rate'], 0.1, key="dropout_slider")
+        st.session_state['epochs'] = st.number_input("Training Epochs", 5, 100, st.session_state['epochs'], 5, key="epochs_input")
+        st.session_state['batch_size'] = st.number_input("Batch Size", 16, 256, st.session_state['batch_size'],16, key="batch_input")
+        st.session_state['scaler_type'] = st.selectbox("Scaler Type", ["MinMaxScaler", "StandardScaler"], 0 if st.session_state['scaler_type']=="MinMaxScaler" else 1, key="scaler_select")
 
-        if st.button("Run LSTM Training"):
+        # Now a separate button to actually run training
+        if st.button("Run LSTM Training", key="run_lstm_training_button"):
             if not st.session_state['my_portfolio']:
                 st.error(get_translated_text(lang, "error_no_assets_lstm"))
             else:
                 try:
-                    optimizer = PortfolioOptimizer(st.session_state['my_portfolio'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate, benchmark_ticker if benchmark_ticker else None)
+                    optimizer = PortfolioOptimizer(
+                        st.session_state['my_portfolio'],
+                        start_date.strftime('%Y-%m-%d'),
+                        end_date.strftime('%Y-%m-%d'),
+                        risk_free_rate,
+                        benchmark_ticker if benchmark_ticker else None
+                    )
                     optimizer.fetch_data()
-                    X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm(look_back=st.session_state['look_back_window'], scaler_type=st.session_state['scaler_type'])
+                    X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm(
+                        look_back=st.session_state['look_back_window'],
+                        scaler_type=st.session_state['scaler_type']
+                    )
                     model = optimizer.train_lstm_model(
                         X_train, y_train,
                         epochs=st.session_state['epochs'],
@@ -568,10 +579,11 @@ def main():
                     st.success(get_translated_text(lang, "success_lstm"))
                     eval_metrics = {"MAE": mae, "RMSE": rmse, "R²": r2}
                     st.table(pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value']).style.format("{:.4f}"))
+
                     if lang == 'ja':
-                        st.markdown("**解釈:** MAE・RMSEが低いほど予測精度が高く、R²が1.0に近いほどモデルがデータをよく説明します。")
+                        st.markdown("**解釈:** MAE・RMSEが低いほど予測精度が高く、R²が1.0に近いほどモデルがデータをよく説明。")
                     else:
-                        st.markdown("**Interpretation:** Lower MAE & RMSE means closer predictions, R² near 1.0 means a better fit.")
+                        st.markdown("**Interpretation:** Lower MAE & RMSE = better. R² near 1.0 = good fit.")
 
                     if r2 > 0.9 and rmse < 0.01:
                         st.success("Excellent performance.")
@@ -606,7 +618,7 @@ def main():
                         - Scaler Type
                         """)
                     else:
-                        st.markdown("**Graph Analysis:** Predicted returns fluctuate over time.")
+                        st.markdown("**Graph Analysis:** Predicted returns fluctuate.")
                         st.markdown("""
                         **Adjustable Parameters:**
                         - Look-back Window
@@ -620,6 +632,11 @@ def main():
                 except Exception as e:
                     st.error(str(e))
 
+    # Optimize portfolio code with scenario testing ...
+    # (Same logic as previously, enclosed in try-except, scenario testing only after success)
+    # ...
+
+    # Optimize portfolio
     if optimize_portfolio_btn:
         if not st.session_state['my_portfolio']:
             st.error(get_translated_text(lang, "error_no_assets_opt"))
@@ -627,7 +644,13 @@ def main():
             st.error(get_translated_text(lang, "error_date"))
         else:
             try:
-                optimizer = PortfolioOptimizer(st.session_state['my_portfolio'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), risk_free_rate, benchmark_ticker if benchmark_ticker else None)
+                optimizer = PortfolioOptimizer(
+                    st.session_state['my_portfolio'],
+                    start_date.strftime('%Y-%m-%d'),
+                    end_date.strftime('%Y-%m-%d'),
+                    risk_free_rate,
+                    benchmark_ticker if benchmark_ticker else None
+                )
                 optimizer.fetch_data()
                 if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
                     if specific_target_return is None:
@@ -732,28 +755,31 @@ def main():
                 shock = st.number_input("", value=0.0, step=1.0, key="shock_input")
                 if st.button(get_translated_text(lang, "scenario_button"), key="test_scenario"):
                     st.write(get_translated_text(lang, "scenario_calculating"))
-                    shock_factor = 1 + shock/100
-                    shocked_returns = optimizer.returns * shock_factor
-                    scenario_ret = shocked_returns.dot(optimal_weights)
-                    scenario_annual_ret = scenario_ret.mean()*252
-                    scenario_vol = scenario_ret.std()*np.sqrt(252)
-                    scenario_sharpe = (scenario_annual_ret - optimizer.risk_free_rate)/scenario_vol if scenario_vol!=0 else 0
+                    try:
+                        shock_factor = 1 + shock/100
+                        shocked_returns = optimizer.returns * shock_factor
+                        scenario_ret = shocked_returns.dot(optimal_weights)
+                        scenario_annual_ret = scenario_ret.mean()*252
+                        scenario_vol = scenario_ret.std()*np.sqrt(252)
+                        scenario_sharpe = (scenario_annual_ret - optimizer.risk_free_rate)/scenario_vol if scenario_vol!=0 else 0
 
-                    scenario_port_cum = (1 + shocked_returns.dot(optimal_weights)).cumprod()
-                    fig_scenario, ax_scenario = plt.subplots(figsize=(10,4))
-                    title_str = f"Cumulative Returns with {shock}% Shock" if lang=='en' else f"{shock}%ショック適用後の累積リターン"
-                    ax_scenario.plot(scenario_port_cum.index, scenario_port_cum.values, label="Scenario Cumulative Returns")
-                    ax_scenario.set_title(title_str)
-                    ax_scenario.set_xlabel("Date" if lang=='en' else "日付")
-                    ax_scenario.set_ylabel("Cumulative Return" if lang=='en' else "累積リターン")
-                    ax_scenario.legend()
-                    plt.xticks(rotation=45)
-                    st.pyplot(fig_scenario)
+                        scenario_port_cum = (1 + shocked_returns.dot(optimal_weights)).cumprod()
+                        fig_scenario, ax_scenario = plt.subplots(figsize=(10,4))
+                        title_str = f"Cumulative Returns with {shock}% Shock" if lang=='en' else f"{shock}%ショック適用後の累積リターン"
+                        ax_scenario.plot(scenario_port_cum.index, scenario_port_cum.values, label="Scenario Cumulative Returns")
+                        ax_scenario.set_title(title_str)
+                        ax_scenario.set_xlabel("Date" if lang=='en' else "日付")
+                        ax_scenario.set_ylabel("Cumulative Return" if lang=='en' else "累積リターン")
+                        ax_scenario.legend()
+                        plt.xticks(rotation=45)
+                        st.pyplot(fig_scenario)
 
-                    if lang=='ja':
-                        st.write(f"{shock}%ショック下での年間リターン: {scenario_annual_ret*100:.2f}%, シャープレシオ: {scenario_sharpe:.2f}")
-                    else:
-                        st.write(f"Under a {shock}% shock, annual return: {scenario_annual_ret*100:.2f}%, Sharpe Ratio: {scenario_sharpe:.2f}")
+                        if lang=='ja':
+                            st.write(f"{shock}%ショック時の年間リターン: {scenario_annual_ret*100:.2f}%, シャープレシオ: {scenario_sharpe:.2f}")
+                        else:
+                            st.write(f"Under a {shock}% shock, annual return: {scenario_annual_ret*100:.2f}%, Sharpe Ratio: {scenario_sharpe:.2f}")
+                    except Exception as e:
+                        st.error(str(e))
 
                 st.success(get_translated_text(lang, "success_optimize"))
 
@@ -776,7 +802,7 @@ def main():
                 cvar_95 = optimizer.conditional_value_at_risk(optimal_weights)
                 hhi = optimizer.herfindahl_hirschman_index(optimal_weights)
 
-                st.subheader("🔑 " + ( "Optimal Portfolio Allocation (Highest Sharpe Ratio)" if lang=='en' else "最高シャープレシオポートフォリオの配分"))
+                st.subheader("🔑 " + ( "Optimal Portfolio Allocation (Highest Sharpe Ratio)" if lang=='en' else "最高シャープレシオポートフォリオ配分"))
                 allocation = pd.DataFrame({
                     "Asset": optimizer.tickers,
                     "Weight (%)": np.round(optimal_weights*100,2)
@@ -841,7 +867,7 @@ def main():
                 ax4.set_title(get_translated_text(lang, "correlation_heatmap"))
                 st.pyplot(fig4)
 
-                st.text("Plotting Efficient Frontier curve, please wait..." if lang=='en' else "効率的フロンティア曲線をプロット中...")
+                st.text("Plotting Efficient Frontier curve, please wait..." if lang=='en' else "効率的フロンティアをプロット中...")
                 results, weights_record = optimizer.compute_efficient_frontier()
                 vol = results[0]
                 ret = results[1]
@@ -865,28 +891,31 @@ def main():
                 shock = st.number_input("", value=0.0, step=1.0, key="shock_input_sharpe")
                 if st.button(get_translated_text(lang, "scenario_button"), key="test_scenario_sharpe"):
                     st.write(get_translated_text(lang, "scenario_calculating"))
-                    shock_factor = 1 + shock/100
-                    shocked_returns = optimizer.returns * shock_factor
-                    scenario_ret = shocked_returns.dot(optimal_weights)
-                    scenario_annual_ret = scenario_ret.mean()*252
-                    scenario_vol = scenario_ret.std()*np.sqrt(252)
-                    scenario_sharpe = (scenario_annual_ret - optimizer.risk_free_rate)/scenario_vol if scenario_vol!=0 else 0
+                    try:
+                        shock_factor = 1 + shock/100
+                        shocked_returns = optimizer.returns * shock_factor
+                        scenario_ret = shocked_returns.dot(optimal_weights)
+                        scenario_annual_ret = scenario_ret.mean()*252
+                        scenario_vol = scenario_ret.std()*np.sqrt(252)
+                        scenario_sharpe = (scenario_annual_ret - optimizer.risk_free_rate)/scenario_vol if scenario_vol!=0 else 0
 
-                    scenario_port_cum = (1 + shocked_returns.dot(optimal_weights)).cumprod()
-                    fig_scenario, ax_scenario = plt.subplots(figsize=(10,4))
-                    title_str = f"Cumulative Returns with {shock}% Shock" if lang=='en' else f"{shock}%ショック適用後の累積リターン"
-                    ax_scenario.plot(scenario_port_cum.index, scenario_port_cum.values, label="Scenario Cumulative Returns")
-                    ax_scenario.set_title(title_str)
-                    ax_scenario.set_xlabel("Date" if lang=='en' else "日付")
-                    ax_scenario.set_ylabel("Cumulative Return" if lang=='en' else "累積リターン")
-                    ax_scenario.legend()
-                    plt.xticks(rotation=45)
-                    st.pyplot(fig_scenario)
+                        scenario_port_cum = (1 + shocked_returns.dot(optimal_weights)).cumprod()
+                        fig_scenario, ax_scenario = plt.subplots(figsize=(10,4))
+                        title_str = f"Cumulative Returns with {shock}% Shock" if lang=='en' else f"{shock}%ショック適用後の累積リターン"
+                        ax_scenario.plot(scenario_port_cum.index, scenario_port_cum.values, label="Scenario Cumulative Returns")
+                        ax_scenario.set_title(title_str)
+                        ax_scenario.set_xlabel("Date" if lang=='en' else "日付")
+                        ax_scenario.set_ylabel("Cumulative Return" if lang=='en' else "累積リターン")
+                        ax_scenario.legend()
+                        plt.xticks(rotation=45)
+                        st.pyplot(fig_scenario)
 
-                    if lang=='ja':
-                        st.write(f"{shock}%ショック時の年間リターン: {scenario_annual_ret*100:.2f}%, シャープレシオ: {scenario_sharpe:.2f}")
-                    else:
-                        st.write(f"Under a {shock}% shock, annual return: {scenario_annual_ret*100:.2f}%, Sharpe Ratio: {scenario_sharpe:.2f}")
+                        if lang=='ja':
+                            st.write(f"{shock}%ショック下での年間リターン: {scenario_annual_ret*100:.2f}%, シャープレシオ: {scenario_sharpe:.2f}")
+                        else:
+                            st.write(f"Under a {shock}% shock, annual return: {scenario_annual_ret*100:.2f}%, Sharpe Ratio: {scenario_sharpe:.2f}")
+                    except Exception as e:
+                        st.error(str(e))
 
                 st.success(get_translated_text(lang, "success_optimize"))
 
