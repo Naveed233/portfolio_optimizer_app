@@ -416,85 +416,85 @@ def main():
     benchmark_ticker = st.sidebar.text_input("Enter benchmark ticker (e.g. ^GSPC for S&P 500):", value="")
 
 
-# Train LSTM
-train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"))
-# Optimize Portfolio
-optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"))
-# Optimize Sharpe
-optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"))
-
-st.header(get_translated_text(lang, "portfolio_analysis"))
-
-if train_lstm:
-    st.info("Training LSTM model, please wait...")
-    if not st.session_state['my_portfolio']:
-        st.error(get_translated_text(lang, "error_no_assets_lstm"))
-    else:
-        try:
-            optimizer = PortfolioOptimizer(
-                st.session_state['my_portfolio'],
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                risk_free_rate,
-                benchmark_ticker if benchmark_ticker else None
-            )
-            optimizer.fetch_data()
-            X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm()
-            model = optimizer.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
-            mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
-
-            st.success(get_translated_text(lang, "success_lstm"))
-            eval_metrics = {
-                "MAE": mae,
-                "RMSE": rmse,
-                "R²": r2
-            }
-            st.table(pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value']).style.format("{:.4f}"))
-
-            # Provide interpretation of the metrics
-            st.markdown("""
-            **Interpretation:**
-            - **MAE & RMSE:** Lower values indicate predictions closer to actual values.
-            - **R² Score:** Closer to 1.0 indicates more variance explained by the model.
-            """)
-
-            # Performance Analysis
-            if r2 > 0.9 and rmse < 0.01:
-                st.success("**Excellent Performance:** The model’s predictions are very close to the actual values. It explains most of the variance in the data.")
-            elif r2 > 0.75 and rmse < 0.05:
-                st.info("**Good Performance:** The model predicts reasonably well. It’s reliable, but further improvements may still yield better accuracy.")
-            elif r2 > 0.5:
-                st.warning("**Moderate Performance:** The model captures some patterns, but there’s significant room for improvement. Consider adding more data or tuning the model.")
-            else:
-                st.error("**Poor Performance:** The model does not predict well. Consider revisiting the model architecture, feature set, or training parameters.")
-
-            future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-            future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B')
-            pred_df = pd.DataFrame({'Date': future_dates, 'Predicted Returns': future_returns})
-
-            fig, ax = plt.subplots(figsize=(10,4))
-            ax.plot(pred_df['Date'], pred_df['Predicted Returns'], color='blue', label='Predicted Returns')
-            ax.legend()
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-
-            with st.expander(get_translated_text(lang, "more_info_lstm")):
-                st.markdown(get_translated_text(lang, "explanation_lstm"))
-
-            # Attempt to auto minimize sidebar after training LSTM
-            hide_sidebar = """
-            <script>
-            var sidebar = parent.document.querySelector('section[aria-label="sidebar"]');
-            var button = parent.document.querySelector('button[title="Collapse sidebar"]');
-            if (button) {
-                button.click();
-            }
-            </script>
-            """
-            st.markdown(hide_sidebar, unsafe_allow_html=True)
-
-        except Exception as e:
-            st.error(str(e))
+    # Train LSTM
+    train_lstm = st.sidebar.button(get_translated_text(lang, "train_lstm"))
+    # Optimize Portfolio
+    optimize_portfolio = st.sidebar.button(get_translated_text(lang, "optimize_portfolio"))
+    # Optimize Sharpe
+    optimize_sharpe = st.sidebar.button(get_translated_text(lang, "optimize_sharpe"))
+    
+    st.header(get_translated_text(lang, "portfolio_analysis"))
+    
+    if train_lstm:
+        st.info("Training LSTM model, please wait...")
+        if not st.session_state['my_portfolio']:
+            st.error(get_translated_text(lang, "error_no_assets_lstm"))
+        else:
+            try:
+                optimizer = PortfolioOptimizer(
+                    st.session_state['my_portfolio'],
+                    start_date.strftime('%Y-%m-%d'),
+                    end_date.strftime('%Y-%m-%d'),
+                    risk_free_rate,
+                    benchmark_ticker if benchmark_ticker else None
+                )
+                optimizer.fetch_data()
+                X_train, y_train, X_test, y_test, scaler = optimizer.prepare_data_for_lstm()
+                model = optimizer.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
+                mae, rmse, r2 = optimizer.evaluate_model(model, scaler, X_test, y_test)
+    
+                st.success(get_translated_text(lang, "success_lstm"))
+                eval_metrics = {
+                    "MAE": mae,
+                    "RMSE": rmse,
+                    "R²": r2
+                }
+                st.table(pd.DataFrame.from_dict(eval_metrics, orient='index', columns=['Value']).style.format("{:.4f}"))
+    
+                # Provide interpretation of the metrics
+                st.markdown("""
+                **Interpretation:**
+                - **MAE & RMSE:** Lower values indicate predictions closer to actual values.
+                - **R² Score:** Closer to 1.0 indicates more variance explained by the model.
+                """)
+    
+                # Performance Analysis
+                if r2 > 0.9 and rmse < 0.01:
+                    st.success("**Excellent Performance:** The model’s predictions are very close to the actual values. It explains most of the variance in the data.")
+                elif r2 > 0.75 and rmse < 0.05:
+                    st.info("**Good Performance:** The model predicts reasonably well. It’s reliable, but further improvements may still yield better accuracy.")
+                elif r2 > 0.5:
+                    st.warning("**Moderate Performance:** The model captures some patterns, but there’s significant room for improvement. Consider adding more data or tuning the model.")
+                else:
+                    st.error("**Poor Performance:** The model does not predict well. Consider revisiting the model architecture, feature set, or training parameters.")
+    
+                future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
+                future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B')
+                pred_df = pd.DataFrame({'Date': future_dates, 'Predicted Returns': future_returns})
+    
+                fig, ax = plt.subplots(figsize=(10,4))
+                ax.plot(pred_df['Date'], pred_df['Predicted Returns'], color='blue', label='Predicted Returns')
+                ax.legend()
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+    
+                with st.expander(get_translated_text(lang, "more_info_lstm")):
+                    st.markdown(get_translated_text(lang, "explanation_lstm"))
+    
+                # Attempt to auto minimize sidebar after training LSTM
+                hide_sidebar = """
+                <script>
+                var sidebar = parent.document.querySelector('section[aria-label="sidebar"]');
+                var button = parent.document.querySelector('button[title="Collapse sidebar"]');
+                if (button) {
+                    button.click();
+                }
+                </script>
+                """
+                st.markdown(hide_sidebar, unsafe_allow_html=True)
+    
+            except Exception as e:
+                st.error(str(e))
 
     if optimize_portfolio:
         if not st.session_state['my_portfolio']:
