@@ -598,7 +598,6 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
     if better_metric:
         recommendation_text = translations[lang].get("recommendation", "").format(better_portfolio=better_portfolio, better_metric=better_metric)
         st.markdown(f"<p><strong>Recommendation:</strong> {recommendation_text}</p>", unsafe_allow_html=True)
-
 # Streamlit App
 def main():
     # Language Selection
@@ -995,10 +994,17 @@ def main():
 
                 # Display Analysis for Highest Sharpe Ratio Portfolio
                 st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
+
+            except ValueError as ve:
+                st.error(str(ve))
+            except Exception as e:
+                logger.exception("An unexpected error occurred during optimization.")
+                st.error(f"{e}")
+
+# Execute the main function with exception handling
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
         logger.exception("An unexpected error occurred.")
         st.error(f"Unexpected error: {e}")
-
