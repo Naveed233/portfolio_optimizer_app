@@ -994,7 +994,6 @@ def main():
                 st.pyplot(fig4)
 
                 # Display Analysis for Highest Sharpe Ratio Portfolio
-                st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios.")
-
+                st.markdown("**Analysis:** This portfolio offers the highest Sharpe Ratio, meaning it provides the best risk-adjusted return among the sampled portfolios."
 if __name__ == "__main__":
     main()
