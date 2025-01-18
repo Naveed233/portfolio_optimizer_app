@@ -1,5 +1,4 @@
 import streamlit as st
-import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -15,6 +14,12 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # ---------- Logging Configuration ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+import yfinance as yf
+
+print("Attempting to download AAPL from 2023-01-01 to 2024-01-01...")
+test_data = yf.download("AAPL", start="2023-01-01", end="2024-01-01", progress=False)
+print(test_data)
+
 
 # ---------- Streamlit Page Configuration ----------
 st.set_page_config(
