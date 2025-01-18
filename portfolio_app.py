@@ -219,6 +219,154 @@ class PortfolioOptimizer:
         predictions = scaler.inverse_transform(predictions_scaled)
         return predictions.flatten()
 
+# Define the train LSTM button in the Streamlit sidebar
+btn_train_lstm = st.sidebar.button("Train LSTM Model")
+
+# Integration into the LSTM training section
+if btn_train_lstm:
+    if "my_portfolio" not in st.session_state or not st.session_state["my_portfolio"]:
+        st.error(get_translated_text(lang, "error_no_assets_lstm"))
+    elif start_date >= end_date:
+        st.error(get_translated_text(lang, "error_date"))
+    else:
+        try:
+            po = PortfolioOptimizer(st.session_state["my_portfolio"], start_date, end_date, risk_free_rate=rf_rate)
+            po.load_data()  # Fetch and process data
+            X_train, y_train, X_test, y_test, scaler = po.prepare_data_for_lstm(look_back=30)
+
+            # Train LSTM model
+            model = po.train_lstm_model(X_train, y_train, epochs=10, batch_size=32)
+
+            # Evaluate model performance
+            mae, rmse, r2 = po.evaluate_model(model, scaler, X_test, y_test)
+            st.success(get_translated_text(lang, "success_lstm"))
+            st.write(f"**MAE**: {mae:.4f}, **RMSE**: {rmse:.4f}, **R^2**: {r2:.4f}")
+
+            # Predict future returns
+            future_preds = po.predict_future_returns(model, scaler, steps=30, look_back=30)
+            future_dates = pd.date_range(end_date, periods=len(future_preds)+1, freq='B')[1:]
+
+            # Plot predictions
+            df_preds = pd.DataFrame({"Date": future_dates, "Predicted Return": future_preds})
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.plot(df_preds["Date"], df_preds["Predicted Return"], marker='o')
+            ax.set_title("Future Returns Prediction")
+            ax.set_xticks(df_preds["Date"])
+            ax.set_xticklabels(df_preds["Date"].strftime('%Y-%m-%d'), rotation=45)
+            plt.tight_layout()
+            st.pyplot(fig)
+
+        except ValueError as ve:
+            st.error(str(ve))
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {str(e)}")
+
+
+# Updated PortfolioOptimizer Class
+class PortfolioOptimizer:
+    def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
+        self.tickers = tickers
+        self.start_date = start_date
+        self.end_date = end_date
+        self.risk_free_rate = risk_free_rate
+        self.returns = None
+
+    def load_data(self):
+        """
+        Use fetch_price_data to get Adjusted Close prices and compute daily returns.
+        """
+        logger.info(f"Fetching data for tickers: {self.tickers}")
+        data = fetch_price_data(self.tickers, self.start_date, self.end_date)
+
+        # Filter columns by valid tickers (they'll appear as columns in multi-ticker mode)
+        valid_cols = [c for c in data.columns if c in self.tickers]
+        data = data[valid_cols].copy()
+
+        self.tickers = valid_cols  # update tickers to only valid ones
+        self.returns = data.pct_change().dropna()
+        logger.info(f"Fetched returns for {len(self.tickers)} tickers: {self.tickers}")
+
+    def prepare_data_for_lstm(self, look_back=60):
+        """
+        Prepare data (scaled returns) for LSTM.
+        Uses the average of all tickers if multiple tickers are present.
+        """
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        data_array = self.returns.mean(axis=1).values.reshape(-1, 1)
+        scaled_data = scaler.fit_transform(data_array)
+
+        X, y = [], []
+        for i in range(look_back, len(scaled_data)):
+            X.append(scaled_data[i - look_back:i, 0])
+            y.append(scaled_data[i, 0])
+
+        X = np.array(X)
+        y = np.array(y)
+
+        # Reshape to [samples, time steps, features=1]
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+
+        # 80/20 split
+        split_idx = int(len(X) * 0.8)
+        X_train, y_train = X[:split_idx], y[:split_idx]
+        X_test, y_test = X[split_idx:], y[split_idx:]
+        return X_train, y_train, X_test, y_test, scaler
+
+    def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
+        """
+        Build and train a simple LSTM model.
+        """
+        # For reproducibility
+        np.random.seed(42)
+        tf.random.set_seed(42)
+        random.seed(42)
+
+        model = tf.keras.Sequential([
+            tf.keras.layers.LSTM(50, return_sequences=True, input_shape=(X_train.shape[1], 1)),
+            tf.keras.layers.LSTM(50),
+            tf.keras.layers.Dense(1)
+        ])
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=1)
+        return model
+
+    def evaluate_model(self, model, scaler, X_test, y_test):
+        """
+        Evaluate LSTM on test data.
+        """
+        predictions = model.predict(X_test)
+        predictions = scaler.inverse_transform(predictions)
+        y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
+
+        mae = mean_absolute_error(y_test, predictions)
+        rmse = np.sqrt(mean_squared_error(y_test, predictions))
+        r2 = r2_score(y_test, predictions)
+        return mae, rmse, r2
+
+    def predict_future_returns(self, model, scaler, steps=30, look_back=60):
+        """
+        Predict the next `steps` daily returns from the last `look_back` days of data.
+        """
+        data_array = self.returns.mean(axis=1).values.reshape(-1, 1)
+        scaled_data = scaler.transform(data_array)
+
+        if len(scaled_data) < look_back:
+            raise ValueError("Not enough historical data to predict future returns.")
+
+        last_seq = scaled_data[-look_back:].reshape(1, look_back, 1)
+        predictions_scaled = []
+        curr_seq = last_seq.copy()
+
+        for _ in range(steps):
+            pred = model.predict(curr_seq)[0][0]
+            predictions_scaled.append(pred)
+            curr_seq = np.roll(curr_seq, -1, axis=1)
+            curr_seq[0, -1, 0] = pred
+
+        predictions_scaled = np.array(predictions_scaled).reshape(-1, 1)
+        predictions = scaler.inverse_transform(predictions_scaled)
+        return predictions.flatten()
+
 # Integration into the LSTM training section
 if btn_train_lstm:
     if "my_portfolio" not in st.session_state or not st.session_state["my_portfolio"]:
