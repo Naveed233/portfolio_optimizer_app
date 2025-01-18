@@ -68,12 +68,6 @@ def get_translated_text(lang, key):
     return translations.get(lang, translations['en']).get(key, key)
 
 # ---------- Safe Price Fetching Function ----------
-# The primary issue seems to be that the `fetch_price_data` function is not correctly handling cases where
-# the `yf.download` function returns a DataFrame without a multi-level column structure or when the tickers do not return valid data.
-
-# Below is the corrected and updated implementation of the `fetch_price_data` function to ensure robustness.
-
-# Updated fetch_price_data function
 def fetch_price_data(tickers, start_date, end_date):
     """
     Safely fetch 'Adj Close' prices for given tickers and date range.
@@ -224,13 +218,17 @@ btn_train_lstm = st.sidebar.button("Train LSTM Model")
 
 # Integration into the LSTM training section
 if btn_train_lstm:
+    lang = 'en'  # default language
     if "my_portfolio" not in st.session_state or not st.session_state["my_portfolio"]:
         st.error(get_translated_text(lang, "error_no_assets_lstm"))
-    elif start_date >= end_date:
-        st.error(get_translated_text(lang, "error_date"))
+    elif "start_date" in st.session_state and "end_date" in st.session_state:
+        start_date = st.session_state.get("start_date")
+        end_date = st.session_state.get("end_date")
+        if start_date >= end_date:
+            st.error(get_translated_text(lang, "error_date"))
     else:
         try:
-            po = PortfolioOptimizer(st.session_state["my_portfolio"], start_date, end_date, risk_free_rate=rf_rate)
+            po = PortfolioOptimizer(st.session_state["my_portfolio"], start_date, end_date, risk_free_rate=0.02)
             po.load_data()  # Fetch and process data
             X_train, y_train, X_test, y_test, scaler = po.prepare_data_for_lstm(look_back=30)
 
@@ -260,7 +258,6 @@ if btn_train_lstm:
             st.error(str(ve))
         except Exception as e:
             st.error(f"An unexpected error occurred: {str(e)}")
-
 
 # Updated PortfolioOptimizer Class
 class PortfolioOptimizer:
