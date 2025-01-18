@@ -69,48 +69,6 @@ def get_translated_text(lang, key):
 
 # ---------- Safe Price Fetching Function ----------
 def fetch_price_data(tickers, start_date, end_date):
-    """
-    Safely fetch 'Adj Close' prices for given tickers and date range.
-    Handles multi-level columns by using .xs(...) for 'Adj Close'.
-    """
-    # If user picked an end date in the future, override with today's date
-    today = datetime.date.today()
-    if end_date > today:
-        end_date = today
-
-    # Download raw data (which often returns a multi-index DataFrame if multiple tickers)
-    raw_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
-    
-    # If completely empty
-    if raw_data.empty:
-        raise ValueError(
-            "No data returned. Check your tickers and date range."
-        )
-
-    # In multi-ticker mode, columns might be multi-level with top level = "Adj Close"
-    # Check if 'Adj Close' is in the first level of the columns:
-    if 'Adj Close' not in raw_data.columns.levels[0]:
-        raise ValueError(
-            "No valid 'Adj Close' data was returned. "
-            "Check your tickers and date range (avoid future dates or invalid tickers)."
-        )
-
-    # Now safely extract the "Adj Close" level from the multi-index
-    adj_close = raw_data.xs('Adj Close', level=0, axis=1)
-
-    # If single ticker was passed, it might be a Series; convert to DataFrame
-    if isinstance(adj_close, pd.Series):
-        adj_close = adj_close.to_frame()
-
-    # Drop rows that are entirely NaN
-    adj_close.dropna(how="all", inplace=True)
-    if adj_close.empty:
-        raise ValueError(
-            "All returned price data were NaN or missing. "
-            "Double-check your tickers/date range."
-        )
-
-    return adj_close
 
 # ---------- Portfolio Optimizer Class ----------
 class PortfolioOptimizer:
