@@ -1,4 +1,5 @@
 import streamlit as st
+import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,12 +15,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # ---------- Logging Configuration ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-import yfinance as yf
-
-print("Attempting to download AAPL from 2023-01-01 to 2024-01-01...")
-test_data = yf.download("AAPL", start="2023-01-01", end="2024-01-01", progress=False)
-print(test_data)
-
 
 # ---------- Streamlit Page Configuration ----------
 st.set_page_config(
@@ -76,34 +71,44 @@ def get_translated_text(lang, key):
 def fetch_price_data(tickers, start_date, end_date):
     """
     Safely fetch 'Adj Close' prices for given tickers and date range.
-    Ensures no future end dates, warns if data is missing or empty.
+    Handles multi-level columns by using .xs(...) for 'Adj Close'.
     """
     # If user picked an end date in the future, override with today's date
     today = datetime.date.today()
     if end_date > today:
         end_date = today
 
-    # Download raw data
+    # Download raw data (which often returns a multi-index DataFrame if multiple tickers)
     raw_data = yf.download(tickers, start=start_date, end=end_date, progress=False)
+    
+    # If completely empty
+    if raw_data.empty:
+        raise ValueError(
+            "No data returned. Check your tickers and date range."
+        )
 
-    # Check if DataFrame is empty or if 'Adj Close' is not in columns
-    if raw_data.empty or 'Adj Close' not in raw_data.columns:
+    # In multi-ticker mode, columns might be multi-level with top level = "Adj Close"
+    # Check if 'Adj Close' is in the first level of the columns:
+    if 'Adj Close' not in raw_data.columns.levels[0]:
         raise ValueError(
             "No valid 'Adj Close' data was returned. "
             "Check your tickers and date range (avoid future dates or invalid tickers)."
         )
 
-    # Extract the Adj Close columns
-    adj_close = raw_data['Adj Close']
+    # Now safely extract the "Adj Close" level from the multi-index
+    adj_close = raw_data.xs('Adj Close', level=0, axis=1)
 
-    # If single ticker, adj_close might be a Series. Convert it to a DataFrame:
+    # If single ticker was passed, it might be a Series; convert to DataFrame
     if isinstance(adj_close, pd.Series):
         adj_close = adj_close.to_frame()
 
     # Drop rows that are entirely NaN
     adj_close.dropna(how="all", inplace=True)
     if adj_close.empty:
-        raise ValueError("All returned price data were NaN or missing. Double-check your tickers/dates.")
+        raise ValueError(
+            "All returned price data were NaN or missing. "
+            "Double-check your tickers/date range."
+        )
 
     return adj_close
 
@@ -123,7 +128,7 @@ class PortfolioOptimizer:
         logger.info(f"Fetching data for tickers: {self.tickers}")
         data = fetch_price_data(self.tickers, self.start_date, self.end_date)
         
-        # Filter columns by valid tickers
+        # Filter columns by valid tickers (they'll appear as columns in multi-ticker mode)
         valid_cols = [c for c in data.columns if c in self.tickers]
         data = data[valid_cols].copy()
         
@@ -324,9 +329,9 @@ class PortfolioOptimizer:
         data_array = self.returns.mean(axis=1).values.reshape(-1, 1)
         scaled_data = scaler.transform(data_array)  # must use the same scaler
 
-        # Get last `look_back` portion
         if len(scaled_data) < look_back:
             raise ValueError("Not enough historical data to predict future returns.")
+
         last_seq = scaled_data[-look_back:].reshape(1, look_back, 1)
         predictions_scaled = []
         curr_seq = last_seq.copy()
