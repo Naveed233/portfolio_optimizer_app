@@ -179,7 +179,10 @@ translations = {
     }
 }
 
+
+##############################
 # Portfolio Optimizer Class
+##############################
 class PortfolioOptimizer:
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
         """
@@ -192,37 +195,55 @@ class PortfolioOptimizer:
         self.returns = None
 
     def fetch_data(self):
-    """
-    Fetch historical price data and calculate daily returns.
-    """
+        """
+        Fetch historical price data and calculate daily returns.
+        """
         logger.info(f"Fetching data for tickers: {self.tickers}")
         data = yf.download(
             self.tickers, start=self.start_date, end=self.end_date, progress=False
         )
         logger.info(f"Data columns: {data.columns}")
         st.write("Fetched Data Preview:", data.head())
-    
-        # Handle cases where 'Adj Close' or 'Close' might be missing
-        if 'Adj Close' in data:
-            data = data['Adj Close']
-        elif 'Close' in data:
-            data = data['Close']
+
+        # Handle cases where data might be MultiIndex (multiple tickers) or single-level
+        if isinstance(data.columns, pd.MultiIndex):
+            # Check if 'Adj Close' is in the top level
+            if 'Adj Close' in data.columns.levels[0]:
+                data = data.xs('Adj Close', axis=1, level=0)
+            elif 'Close' in data.columns.levels[0]:
+                data = data.xs('Close', axis=1, level=0)
+            else:
+                st.error("Neither 'Adj Close' nor 'Close' columns are available in multi-index.")
+                raise ValueError("Neither 'Adj Close' nor 'Close' columns are available in multi-index.")
         else:
-            st.error("Neither 'Adj Close' nor 'Close' columns are available.")
-            raise ValueError("Neither 'Adj Close' nor 'Close' columns are available.")
-    
-        data.dropna(axis=1, inplace=True)
-    
+            # Single-level columns
+            if 'Adj Close' in data.columns:
+                data = data['Adj Close']
+            elif 'Close' in data.columns:
+                data = data['Close']
+            else:
+                st.error("Neither 'Adj Close' nor 'Close' columns are available.")
+                raise ValueError("Neither 'Adj Close' nor 'Close' columns are available.")
+
+        # Drop any columns (tickers) with all NaNs
+        data.dropna(axis=1, how='all', inplace=True)
+
         if data.empty:
             logger.error("No data fetched after dropping missing tickers.")
             raise ValueError("No data fetched. Please check the tickers and date range.")
-    
+
         # Update tickers to match the columns in the fetched data
-        self.tickers = list(data.columns)
+        if isinstance(data, pd.DataFrame):
+            self.tickers = list(data.columns)
+        else:
+            # If single series, force it to a DataFrame for consistency
+            self.tickers = [data.name]
+            data = pd.DataFrame(data)
+
         self.returns = data.pct_change().dropna()
         logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
         return self.tickers
-    
+
     def portfolio_stats(self, weights):
         """
         Calculate portfolio return, volatility, and Sharpe ratio.
@@ -341,7 +362,7 @@ class PortfolioOptimizer:
         X, y = [], []
         look_back = 60  # Look-back period (e.g., 60 days)
         for i in range(look_back, len(scaled_data)):
-            X.append(scaled_data[i-look_back:i])
+            X.append(scaled_data[i - look_back:i])
             y.append(scaled_data[i])
 
         # Split into training and testing sets (e.g., 80% train, 20% test)
@@ -357,14 +378,15 @@ class PortfolioOptimizer:
         return X_train, y_train, X_test, y_test, scaler
 
     def train_lstm_model(self, X_train, y_train, epochs=10, batch_size=32):
+        """
+        Train LSTM model.
+        """
         # Set random seed for reproducibility
         seed_value = 42
         np.random.seed(seed_value)
         tf.random.set_seed(seed_value)
         random.seed(seed_value)
-        """
-        Train LSTM model.
-        """
+
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
         model.add(tf.keras.layers.LSTM(units=50))
@@ -421,15 +443,20 @@ class PortfolioOptimizer:
             portfolio_return, portfolio_volatility, sharpe = self.portfolio_stats(weights)
             var = self.value_at_risk(weights, confidence_level=0.95)
             cvar = self.conditional_value_at_risk(weights, confidence_level=0.95)
-            max_dd = self.maximum_drawdown(weights)
-            hhi = self.herfindahl_hirschman_index(weights)
-            results[0,i] = portfolio_volatility
-            results[1,i] = portfolio_return
-            results[2,i] = sharpe
-            results[3,i] = hhi
+            # We won't store these below yet, but you could if needed:
+            # max_dd = self.maximum_drawdown(weights)
+            # hhi = self.herfindahl_hirschman_index(weights)
+            results[0, i] = portfolio_volatility
+            results[1, i] = portfolio_return
+            results[2, i] = sharpe
+            # For demonstration, store HHI or another metric if desired
+            results[3, i] = self.herfindahl_hirschman_index(weights)
         return results, weights_record
 
+
+##############################
 # Helper Functions
+##############################
 def extract_ticker(asset_string):
     """
     Extract ticker symbol from asset string.
@@ -522,8 +549,8 @@ def display_metrics_table(metrics, lang):
             "sharpe_ratio": analyze_sharpe,
             "sortino_ratio": analyze_sharpe,  # Assuming similar feedback
             "calmar_ratio": analyze_sharpe,   # Assuming similar feedback
-            "beta": analyze_sharpe,           # Assuming similar feedback
-            "alpha": analyze_sharpe            # Assuming similar feedback
+            "beta": analyze_sharpe,           # Placeholder or custom function
+            "alpha": analyze_sharpe           # Placeholder or custom function
         }.get(key, lambda x: "")
 
         analysis = analysis_func(value)
@@ -577,10 +604,19 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
         else:
             better = "-"
 
+        # Formatting for percentages or decimals
+        def format_val(k, v):
+            if k in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"]:
+                return f"{v:.2f}"
+            elif k in ["var", "cvar", "max_drawdown", "beta", "hhi"]:
+                return f"{v:.4f}" if k in ["hhi"] else f"{v:.2%}"
+            else:
+                return f"{v:.2f}"
+
         comparison_data.append({
             "Metric": metric_display,
-            "Base Portfolio": f"{base_value:.2%}" if "return" in key or key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"] else f"{base_value:.4f}",
-            "Optimized Portfolio": f"{optimized_value:.2%}" if "return" in key or key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"] else f"{optimized_value:.4f}",
+            "Base Portfolio": format_val(key, base_value),
+            "Optimized Portfolio": format_val(key, optimized_value),
             "Better": better
         })
 
@@ -602,10 +638,15 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
 
     # Recommendation
     if better_metric:
-        recommendation_text = translations[lang].get("recommendation", "").format(better_portfolio=better_portfolio, better_metric=better_metric)
+        recommendation_text = translations[lang].get("recommendation", "").format(
+            better_portfolio=better_portfolio, better_metric=better_metric
+        )
         st.markdown(f"<p><strong>Recommendation:</strong> {recommendation_text}</p>", unsafe_allow_html=True)
 
+
+##############################
 # Streamlit App
+##############################
 def main():
     # Language Selection
     st.sidebar.header("🌐 Language Selection")
@@ -637,7 +678,7 @@ def main():
         selected_universe_assets = st.sidebar.multiselect(
             get_translated_text(lang, "add_portfolio"),
             universe_options[universe_choice],
-            default=[]  # No default selection to prevent auto-adding
+            default=[]
         )
 
     # Initialize Session State for Portfolio
@@ -660,8 +701,8 @@ def main():
                 st.sidebar.success(get_translated_text(lang, "add_portfolio") + " " + get_translated_text(lang, "my_portfolio"))
     else:
         # Add Custom Tickers to Portfolio
-        if custom_tickers:
-            if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
+        if st.sidebar.button(get_translated_text(lang, "add_portfolio")):
+            if custom_tickers.strip():
                 new_tickers = [ticker.strip().upper() for ticker in custom_tickers.split(",") if ticker.strip()]
                 # Add only unique tickers
                 st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
@@ -743,7 +784,7 @@ def main():
 
                 # Predict future returns for the next 30 days
                 future_returns = optimizer.predict_future_returns(model, scaler, steps=30)
-                future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B').to_pydatetime().tolist()  # 'B' for business days
+                future_dates = pd.date_range(end_date, periods=len(future_returns), freq='B').to_pydatetime().tolist()  # 'B' = business days
 
                 # Create a DataFrame for plotting
                 prediction_df = pd.DataFrame({
@@ -822,13 +863,13 @@ def main():
                     "max_drawdown": max_dd,
                     "hhi": hhi,
                     "sharpe_ratio": sharpe_ratio,
-                    "sortino_ratio": optimizer.sharpe_ratio_objective(optimal_weights),  # Placeholder
-                    "calmar_ratio": optimizer.sharpe_ratio_objective(optimal_weights),   # Placeholder
-                    "beta": 0.0,  # Placeholder
-                    "alpha": 0.0   # Placeholder
+                    "sortino_ratio": 0.0,  # Placeholder
+                    "calmar_ratio": 0.0,   # Placeholder
+                    "beta": 0.0,          # Placeholder
+                    "alpha": 0.0          # Placeholder
                 }
 
-                # Update base portfolio metrics if strategy is base
+                # Update base portfolio metrics if strategy is "Risk-free"
                 if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
                     st.session_state['base_portfolio_metrics'] = metrics
                 else:
@@ -846,7 +887,7 @@ def main():
                     # Pie Chart for Allocation
                     fig1, ax1 = plt.subplots(figsize=(5, 4))
                     ax1.pie(allocation['Weight (%)'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10})
-                    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+                    ax1.axis('equal')
                     ax1.set_title(get_translated_text(lang, "portfolio_composition"))
                     st.pyplot(fig1)
 
@@ -864,7 +905,7 @@ def main():
                     for p in ax2.patches:
                         ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2., p.get_height()),
                                      ha='center', va='bottom', fontsize=10)
-                    plt.xticks(rotation=0, ha='center')  # Adjust rotation if needed
+                    plt.xticks(rotation=0, ha='center')
                     plt.tight_layout()
                     st.pyplot(fig2)
 
@@ -872,7 +913,8 @@ def main():
                 st.subheader(get_translated_text(lang, "correlation_heatmap"))
                 correlation_matrix = optimizer.returns.corr()
                 fig3, ax3 = plt.subplots(figsize=(8, 6))
-                sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
+                sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3,
+                            cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
                 plt.title(get_translated_text(lang, "correlation_heatmap"))
                 plt.tight_layout()
                 st.pyplot(fig3)
@@ -924,9 +966,9 @@ def main():
                     "hhi": hhi,
                     "sharpe_ratio": sharpe_ratio,
                     "sortino_ratio": 0.0,  # Placeholder
-                    "calmar_ratio": 0.0,    # Placeholder
-                    "beta": 0.0,             # Placeholder
-                    "alpha": 0.0             # Placeholder
+                    "calmar_ratio": 0.0,   # Placeholder
+                    "beta": 0.0,           # Placeholder
+                    "alpha": 0.0           # Placeholder
                 }
 
                 # Update optimized portfolio metrics
@@ -944,7 +986,7 @@ def main():
                     # Pie Chart for Allocation
                     fig1, ax1 = plt.subplots(figsize=(5, 4))
                     ax1.pie(allocation['Weight (%)'], labels=allocation['Asset'], autopct='%1.1f%%', startangle=90, textprops={'fontsize': 10})
-                    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+                    ax1.axis('equal')
                     ax1.set_title(get_translated_text(lang, "portfolio_composition"))
                     st.pyplot(fig1)
 
@@ -962,7 +1004,7 @@ def main():
                     for p in ax2.patches:
                         ax2.annotate(f"{p.get_height():.2f}", (p.get_x() + p.get_width() / 2., p.get_height()),
                                      ha='center', va='bottom', fontsize=10)
-                    plt.xticks(rotation=0, ha='center')  # Adjust rotation if needed
+                    plt.xticks(rotation=0, ha='center')
                     plt.tight_layout()
                     st.pyplot(fig2)
 
@@ -970,7 +1012,8 @@ def main():
                 st.subheader(get_translated_text(lang, "correlation_heatmap"))
                 correlation_matrix = optimizer.returns.corr()
                 fig3, ax3 = plt.subplots(figsize=(8, 6))
-                sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3, cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
+                sns.heatmap(correlation_matrix, annot=True, cmap='Spectral', linewidths=0.3, ax=ax3,
+                            cbar_kws={'shrink': 0.8}, annot_kws={'fontsize': 8})
                 plt.title(get_translated_text(lang, "correlation_heatmap"))
                 plt.tight_layout()
                 st.pyplot(fig3)
@@ -978,18 +1021,18 @@ def main():
                 # Compute and Plot Efficient Frontier
                 st.subheader("📈 Efficient Frontier")
                 results, weights_record = optimizer.compute_efficient_frontier()
-                portfolio_volatility = results[0]
-                portfolio_return = results[1]
+                portfolio_volatility_arr = results[0]
+                portfolio_return_arr = results[1]
                 sharpe_ratios = results[2]
 
                 # Find the portfolio with the highest Sharpe Ratio
                 max_sharpe_idx = np.argmax(sharpe_ratios)
-                max_sharpe_vol = portfolio_volatility[max_sharpe_idx]
-                max_sharpe_ret = portfolio_return[max_sharpe_idx]
+                max_sharpe_vol = portfolio_volatility_arr[max_sharpe_idx]
+                max_sharpe_ret = portfolio_return_arr[max_sharpe_idx]
 
                 # Plot Efficient Frontier
                 fig4, ax4 = plt.subplots(figsize=(10, 6))
-                scatter = ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
+                scatter = ax4.scatter(portfolio_volatility_arr, portfolio_return_arr, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
                 sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 plt.colorbar(scatter, label='Sharpe Ratio')
                 ax4.set_xlabel('Annual \n Volatility (Risk)')
@@ -1018,10 +1061,18 @@ def main():
 
                 # Display Risk Metrics with Explanations and Feedback
                 st.subheader("📊 Detailed Performance Metrics")
-                for key in ["Expected \n Annual Return (%)", "Annual Volatility\n(Risk) (%)", "Sharpe Ratio", "Value at Risk (VaR)", "Conditional Value at Risk (CVaR)", "Maximum Drawdown", "Herfindahl-Hirschman Index (HHI)"]:
+                for key in [
+                    "Expected \n Annual Return (%)",
+                    "Annual Volatility\n(Risk) (%)",
+                    "Sharpe Ratio",
+                    "Value at Risk (VaR)",
+                    "Conditional Value at Risk (CVaR)",
+                    "Maximum Drawdown",
+                    "Herfindahl-Hirschman Index (HHI)"
+                ]:
                     value = detailed_metrics.get(key, None)
                     if value is not None:
-                        display_value = f"{value:.2f}" if key in ["Sharpe Ratio"] else (f"{value:.2f}%" if "%" in key else f"{value:.4f}")
+                        display_value = f"{value:.2f}" if key == "Sharpe Ratio" else (f"{value:.2f}%" if "%" in key else f"{value:.4f}")
                         st.markdown(f"**{key}:** {display_value}")
 
                         # Provide feedback based on the metric
@@ -1057,7 +1108,6 @@ def main():
             base_metrics = st.session_state['base_portfolio_metrics']
             optimized_metrics = st.session_state['optimized_portfolio_metrics']
             compare_portfolios(base_metrics, optimized_metrics, lang)
-
 
 
 if __name__ == "__main__":
