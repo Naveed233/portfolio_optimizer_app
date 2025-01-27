@@ -13,7 +13,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Configure logging
-logging.basicConfig(level=logging.INFO
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set Streamlit page configuration
@@ -225,10 +225,10 @@ class PortfolioOptimizer:
         weights = np.array(weights)
         if len(weights) != len(self.tickers):
             raise ValueError("Weights array length does not match the number of tickers.")
-        
+
         # Ensure weights sum to 1
         weights = weights / np.sum(weights)
-        
+
         portfolio_return = np.dot(weights, self.returns.mean()) * 252
         portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
         sharpe_ratio = (portfolio_return - self.risk_free_rate) / portfolio_volatility
@@ -331,13 +331,13 @@ class PortfolioOptimizer:
         """
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(self.returns.values)
-        
+
         X, y = [], []
         look_back = 60  # Look-back period (e.g., 60 days)
         for i in range(look_back, len(scaled_data)):
             X.append(scaled_data[i-look_back:i])
             y.append(scaled_data[i])
-        
+
         # Split into training and testing sets (e.g., 80% train, 20% test)
         split = int(len(X) * 0.8)
         X_train, X_test = X[:split], X[split:]
@@ -380,10 +380,10 @@ class PortfolioOptimizer:
         X_test = []
         X_test.append(scaled_last_data)
         X_test = np.array(X_test)
-        
+
         predicted_scaled = model.predict(X_test)
         predicted = scaler.inverse_transform(predicted_scaled)
-        
+
         # Ensure the length matches the number of future steps requested
         future_returns = predicted[0][:steps] if len(predicted[0]) >= steps else predicted[0]
         return future_returns
@@ -506,7 +506,7 @@ def display_metrics_table(metrics, lang):
             display_value = f"{value:.2f}"
         else:
             display_value = f"{value:.2%}"
-        
+
         # Get analysis
         analysis_func = {
             "var": analyze_var,
@@ -519,14 +519,14 @@ def display_metrics_table(metrics, lang):
             "beta": analyze_sharpe,           # Assuming similar feedback
             "alpha": analyze_sharpe            # Assuming similar feedback
         }.get(key, lambda x: "")
-        
+
         analysis = analysis_func(value)
         metric_display.append({
             "Metric": display_key,
             "Value": display_value,
             "Analysis": analysis
         })
-    
+
     metrics_df = pd.DataFrame.from_dict(metric_display)
     st.table(metrics_df.style.set_properties(**{
         'text-align': 'left',
@@ -547,7 +547,7 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
         base_value = base_metrics[key]
         optimized_value = optimized_metrics[key]
         metric_display = get_translated_text(lang, key)
-        
+
         # Determine which portfolio has a better value based on the metric type
         # Higher is better for ratios and returns; lower is better for risk metrics
         if key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"]:
@@ -570,7 +570,7 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
                 better_metric = metric_display
         else:
             better = "-"
-        
+
         comparison_data.append({
             "Metric": metric_display,
             "Base Portfolio": f"{base_value:.2%}" if "return" in key or key in ["sharpe_ratio", "sortino_ratio", "calmar_ratio", "alpha"] else f"{base_value:.4f}",
@@ -687,7 +687,7 @@ def main():
     # Display Target Return Slider only if "Risk-free Investment" is selected
     if investment_strategy == get_translated_text(lang, "strategy_risk_free"):
         specific_target_return = st.sidebar.slider(
-            get_translated_text(lang, "target_return"), 
+            get_translated_text(lang, "target_return"),
             min_value=-5.0, max_value=20.0, value=5.0, step=0.1
         ) / 100
     else:
@@ -848,7 +848,7 @@ def main():
                     # Bar Chart for Performance Metrics
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
-                        "Expected Annual Return (%)": portfolio_return * 100,
+                        "Expected\n Annual Return (%)": portfolio_return * 100,
                         "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
@@ -946,7 +946,7 @@ def main():
                     # Bar Chart for Performance Metrics
                     fig2, ax2 = plt.subplots(figsize=(5, 4))
                     performance_metrics = {
-                        "Expected Annual Return (%)": portfolio_return * 100,
+                        "Expected\n Annual Return (%)": portfolio_return * 100,
                         "Annual Volatility\n(Risk) (%)": portfolio_volatility * 100,
                         "Sharpe Ratio": sharpe_ratio
                     }
@@ -986,7 +986,6 @@ def main():
                 scatter = ax4.scatter(portfolio_volatility, portfolio_return, c=sharpe_ratios, cmap='viridis', marker='o', s=10, alpha=0.3)
                 sc = ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 plt.colorbar(scatter, label='Sharpe Ratio')
-                ax4.scatter(max_sharpe_vol, max_sharpe_ret, c='red', marker='*', s=200, label='Max Sharpe Ratio')
                 ax4.set_xlabel('Annual \n Volatility (Risk)')
                 ax4.set_ylabel('Expected Annual Return')
                 ax4.set_title('Efficient Frontier')
@@ -1053,7 +1052,7 @@ def main():
             optimized_metrics = st.session_state['optimized_portfolio_metrics']
             compare_portfolios(base_metrics, optimized_metrics, lang)
 
- 
+
 
 if __name__ == "__main__":
     main()
