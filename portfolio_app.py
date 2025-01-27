@@ -192,31 +192,37 @@ class PortfolioOptimizer:
         self.returns = None
 
     def fetch_data(self):
-        """
-        Fetch historical price data and calculate daily returns.
-        """
+    """
+    Fetch historical price data and calculate daily returns.
+    """
         logger.info(f"Fetching data for tickers: {self.tickers}")
         data = yf.download(
             self.tickers, start=self.start_date, end=self.end_date, progress=False
-        )["Adj Close"]
-
-        missing_tickers = set(self.tickers) - set(data.columns)
-        if missing_tickers:
-            st.warning(f"The following tickers were not fetched: {', '.join(missing_tickers)}")
-            logger.warning(f"Missing tickers: {missing_tickers}")
-
+        )
+        logger.info(f"Data columns: {data.columns}")
+        st.write("Fetched Data Preview:", data.head())
+    
+        # Handle cases where 'Adj Close' or 'Close' might be missing
+        if 'Adj Close' in data:
+            data = data['Adj Close']
+        elif 'Close' in data:
+            data = data['Close']
+        else:
+            st.error("Neither 'Adj Close' nor 'Close' columns are available.")
+            raise ValueError("Neither 'Adj Close' nor 'Close' columns are available.")
+    
         data.dropna(axis=1, inplace=True)
-
+    
         if data.empty:
             logger.error("No data fetched after dropping missing tickers.")
             raise ValueError("No data fetched. Please check the tickers and date range.")
-
+    
         # Update tickers to match the columns in the fetched data
         self.tickers = list(data.columns)
         self.returns = data.pct_change().dropna()
         logger.info(f"Fetched returns for {len(self.tickers)} tickers.")
         return self.tickers
-
+    
     def portfolio_stats(self, weights):
         """
         Calculate portfolio return, volatility, and Sharpe ratio.
