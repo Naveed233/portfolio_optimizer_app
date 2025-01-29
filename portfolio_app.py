@@ -1019,7 +1019,7 @@ def main():
                 st.pyplot(fig3)
 
                 # Compute and Plot Efficient Frontier
-                st.subheader("📈 Efficient Frontier")
+                st.subheader("📈 Efficient Frontier : Graph loading, please wait...")
                 results, weights_record = optimizer.compute_efficient_frontier()
                 portfolio_volatility_arr = results[0]
                 portfolio_return_arr = results[1]
