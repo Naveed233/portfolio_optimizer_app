@@ -720,7 +720,21 @@ def main():
 
     # Date Inputs
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024, 1, 1), max_value=datetime.today())
-    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime.today(), max_value=datetime.today())
+    def get_last_day_previous_month():
+        today = datetime.today()
+        # Replace the day with 1 to get the first day of the current month
+        first_day_current_month = today.replace(day=1)
+        # Subtract one day to get the last day of the previous month
+        last_day_prev_month = first_day_current_month - timedelta(days=1)
+        return last_day_prev_month
+    
+    # Assuming you have a function to get translated text
+    # Replace `lang` with your language variable if different
+    end_date = st.sidebar.date_input(
+        get_translated_text(lang, "end_date"),
+        value=get_last_day_previous_month(),
+        max_value=datetime.today()
+    )
 
     # Risk-Free Rate Input
     risk_free_rate = st.sidebar.number_input(get_translated_text(lang, "risk_free_rate"), value=2.0, step=0.1) / 100
