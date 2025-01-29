@@ -720,7 +720,7 @@ def main():
 
     # Date Inputs
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024, 1, 1), max_value=datetime.today())
-    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime(2024, 12, 31), max_value=datetime.today()
+    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime(2024, 12, 31), max_value=datetime.today())
 
     # Risk-Free Rate Input
     risk_free_rate = st.sidebar.number_input(get_translated_text(lang, "risk_free_rate"), value=2.0, step=0.1) / 100
