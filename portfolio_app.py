@@ -179,7 +179,6 @@ translations = {
     }
 }
 
-
 ##############################
 # Portfolio Optimizer Class
 ##############################
@@ -624,12 +623,13 @@ def compare_portfolios(base_metrics, optimized_metrics, lang):
 
     # Highlight better values in green
     def highlight_better(row):
-        if row['Better'] == "Optimized":
-            return ['background-color: lightgreen']*4
-        elif row['Better'] == "Base":
-            return ['background-color: lightgreen']*4
-        else:
-            return ['']*4
+        better = row['Better']
+        styles = [''] * len(row)
+        if better == "Optimized":
+            styles[comparison_df.columns.get_loc("Optimized Portfolio")] = 'background-color: lightgreen'
+        elif better == "Base":
+            styles[comparison_df.columns.get_loc("Base Portfolio")] = 'background-color: lightgreen'
+        return styles
 
     comparison_df = comparison_df.style.apply(highlight_better, axis=1)
 
@@ -720,7 +720,15 @@ def main():
 
     # Date Inputs
     start_date = st.sidebar.date_input(get_translated_text(lang, "start_date"), value=datetime(2024, 1, 1), max_value=datetime.today())
-    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=datetime(2024, 12, 31), max_value=datetime.today())
+    
+    # **Updated Date Input for End Date to set default to last day of previous month**
+    def get_last_day_previous_month():
+        today = datetime.today()
+        first_day_current_month = today.replace(day=1)
+        last_day_prev_month = first_day_current_month - pd.Timedelta(days=1)
+        return last_day_prev_month
+
+    end_date = st.sidebar.date_input(get_translated_text(lang, "end_date"), value=get_last_day_previous_month(), max_value=datetime.today())
 
     # Risk-Free Rate Input
     risk_free_rate = st.sidebar.number_input(get_translated_text(lang, "risk_free_rate"), value=2.0, step=0.1) / 100
