@@ -18,7 +18,9 @@ nltk.download('vader_lexicon')
 def extract_ticker(asset_str):
     return asset_str.split(' - ')[0].strip()
 
+# ─────────────────────────────────────────────
 # Portfolio Optimizer Class
+# ─────────────────────────────────────────────
 class PortfolioOptimizer:
     def __init__(self, tickers, start_date, end_date, risk_free_rate=0.02):
         """
@@ -32,7 +34,7 @@ class PortfolioOptimizer:
         self.tickers = [ticker.strip().upper() for ticker in tickers.split(',')]
         self.start_date = start_date
         self.end_date = end_date
-        self.risk_free_rate = risk_free_rate / 100  # Convert percentage to decimal
+        self.risk_free_rate = risk_free_rate / 100  # Convert % to decimal
         self.returns = None
 
     def fetch_data(self):
@@ -71,7 +73,7 @@ class PortfolioOptimizer:
         - news_data (dict): Dictionary with tickers as keys and list of articles as values.
         """
         news_data = {}
-        API_KEY = 'c1b710a8638d4e55ab8ec4415e97388a'  # Replace with your NewsAPI key
+        API_KEY = 'c1b710a8638d4e55ab8ec4415e97388a'  # <-- Replace with your NewsAPI key
         for ticker in self.tickers:
             url = f"https://newsapi.org/v2/everything?q={ticker}&sortBy=publishedAt&apiKey={API_KEY}"
             response = requests.get(url)
@@ -86,6 +88,8 @@ class PortfolioOptimizer:
         """
         Applies PCA to denoise the returns data by retaining components that explain 95% of the variance.
         """
+        if self.returns is None or self.returns.empty:
+            return
         pca = PCA(n_components=min(10, len(self.returns.columns)))
         pca_returns = pca.fit_transform(self.returns)
         explained_variance = pca.explained_variance_ratio_.cumsum()
@@ -97,6 +101,8 @@ class PortfolioOptimizer:
         """
         Clusters assets based on their return profiles using KMeans.
         """
+        if self.returns is None or self.returns.empty:
+            return None
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         clusters = kmeans.fit_predict(self.returns.T)
         return clusters
@@ -105,15 +111,19 @@ class PortfolioOptimizer:
         """
         Calculates annual return, annual volatility, and Sharpe ratio for the portfolio.
         """
+        if self.returns is None or self.returns.empty:
+            return 0, 0, 0
         annual_return = np.dot(weights, self.returns.mean()) * 252
         annual_volatility = np.sqrt(np.dot(weights.T, np.dot(self.returns.cov() * 252, weights)))
-        sharpe_ratio = (annual_return - self.risk_free_rate) / annual_volatility
+        sharpe_ratio = (annual_return - self.risk_free_rate) / annual_volatility if annual_volatility != 0 else 0
         return annual_return, annual_volatility, sharpe_ratio
 
     def value_at_risk(self, weights, confidence_level=0.95):
         """
         Calculates the Value at Risk (VaR) for the portfolio.
         """
+        if self.returns is None or self.returns.empty:
+            return 0
         portfolio_returns = self.returns.dot(weights)
         var = np.percentile(portfolio_returns, (1 - confidence_level) * 100)
         return var
@@ -122,6 +132,8 @@ class PortfolioOptimizer:
         """
         Calculates the Conditional Value at Risk (CVaR) for the portfolio.
         """
+        if self.returns is None or self.returns.empty:
+            return 0
         portfolio_returns = self.returns.dot(weights)
         var = self.value_at_risk(weights, confidence_level)
         cvar = portfolio_returns[portfolio_returns <= var].mean()
@@ -131,6 +143,8 @@ class PortfolioOptimizer:
         """
         Calculates the Maximum Drawdown for the portfolio.
         """
+        if self.returns is None or self.returns.empty:
+            return 0
         portfolio_returns = self.returns.dot(weights)
         cumulative_returns = (1 + portfolio_returns).cumprod()
         peak = cumulative_returns.cummax()
@@ -149,13 +163,15 @@ class PortfolioOptimizer:
         Objective function to maximize the Sharpe Ratio.
         """
         _, _, sharpe = self.portfolio_stats(weights)
-        return -sharpe
+        return -sharpe  # Negative for minimization
 
     def optimize_sharpe_ratio(self):
         """
         Optimizes portfolio weights to maximize the Sharpe Ratio.
         """
         num_assets = len(self.tickers)
+        if num_assets == 0:
+            return []
         initial_weights = np.ones(num_assets) / num_assets
         bounds = tuple((0, 1) for _ in range(num_assets))
         constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
@@ -168,10 +184,12 @@ class PortfolioOptimizer:
         """
         Objective function to achieve Risk Parity (equal risk contribution).
         """
+        if self.returns is None or self.returns.empty:
+            return 0
         portfolio_variance = np.dot(weights.T, np.dot(self.returns.cov() * 252, weights))
         marginal_contrib = np.dot(self.returns.cov() * 252, weights)
         risk_contrib = weights * marginal_contrib
-        risk_parity = risk_contrib / np.sqrt(portfolio_variance)
+        risk_parity = risk_contrib / np.sqrt(portfolio_variance) if portfolio_variance != 0 else 0
         target = 1 / len(weights)
         return np.sum((risk_parity - target) ** 2)
 
@@ -180,6 +198,8 @@ class PortfolioOptimizer:
         Optimizes portfolio weights to achieve Risk Parity.
         """
         num_assets = len(self.tickers)
+        if num_assets == 0:
+            return []
         initial_weights = np.ones(num_assets) / num_assets
         bounds = tuple((0, 1) for _ in range(num_assets))
         constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
@@ -194,34 +214,55 @@ class PortfolioOptimizer:
 
 st.title("📈 Portfolio Optimization with Comprehensive Risk Management")
 
-# Asset Selection Section
+# ─────────────────────────────────────────────
+# 1) Asset Selection Section
+# ─────────────────────────────────────────────
 st.sidebar.header("Asset Selection")
 
 # Define preset universes
 universe_options = {
-    'Tech Giants': ['AAPL - Apple', 'MSFT - Microsoft', 'GOOGL - Alphabet', 'AMZN - Amazon', 'META - Meta Platforms', 'TSLA - Tesla', 'NVDA - NVIDIA', 'ADBE - Adobe', 'INTC - Intel', 'CSCO - Cisco'],
-    'Finance Leaders': ['JPM - JPMorgan Chase', 'BAC - Bank of America', 'WFC - Wells Fargo', 'C - Citigroup', 'GS - Goldman Sachs', 'MS - Morgan Stanley', 'AXP - American Express', 'BLK - BlackRock', 'SCHW - Charles Schwab', 'USB - U.S. Bancorp'],
-    'Healthcare Majors': ['JNJ - Johnson & Johnson', 'PFE - Pfizer', 'UNH - UnitedHealth', 'MRK - Merck', 'ABBV - AbbVie', 'ABT - Abbott', 'TMO - Thermo Fisher Scientific', 'MDT - Medtronic', 'DHR - Danaher', 'BMY - Bristol-Myers Squibb'],
+    'Tech Giants': [
+        'AAPL - Apple', 'MSFT - Microsoft', 'GOOGL - Alphabet', 'AMZN - Amazon',
+        'META - Meta Platforms', 'TSLA - Tesla', 'NVDA - NVIDIA', 'ADBE - Adobe',
+        'INTC - Intel', 'CSCO - Cisco'
+    ],
+    'Finance Leaders': [
+        'JPM - JPMorgan Chase', 'BAC - Bank of America', 'WFC - Wells Fargo',
+        'C - Citigroup', 'GS - Goldman Sachs', 'MS - Morgan Stanley',
+        'AXP - American Express', 'BLK - BlackRock', 'SCHW - Charles Schwab',
+        'USB - U.S. Bancorp'
+    ],
+    'Healthcare Majors': [
+        'JNJ - Johnson & Johnson', 'PFE - Pfizer', 'UNH - UnitedHealth',
+        'MRK - Merck', 'ABBV - AbbVie', 'ABT - Abbott',
+        'TMO - Thermo Fisher Scientific', 'MDT - Medtronic', 'DHR - Danaher',
+        'BMY - Bristol-Myers Squibb'
+    ],
     'Custom': []
 }
 
 universe_choice = st.sidebar.selectbox("Select Asset Universe", options=list(universe_options.keys()), index=0)
 
+# Custom input or multi-select from preset
 if universe_choice == 'Custom':
     custom_tickers = st.sidebar.text_input("Enter custom tickers (separated by commas)")
 else:
-    selected_assets = st.sidebar.multiselect("Select assets to add to your portfolio", universe_options[universe_choice], default=[])
+    selected_assets = st.sidebar.multiselect(
+        "Select assets to add to your portfolio",
+        universe_options[universe_choice],
+        default=[]
+    )
 
 # Initialize session state for portfolio if it doesn't exist
 if 'my_portfolio' not in st.session_state:
     st.session_state['my_portfolio'] = []
 
+# Add chosen assets to session state
 if universe_choice != 'Custom':
-    if selected_assets:
-        if st.sidebar.button("Add Assets"):
-            new_tickers = [extract_ticker(asset) for asset in selected_assets]
-            st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
-            st.sidebar.success("Assets added to portfolio!")
+    if selected_assets and st.sidebar.button("Add Assets"):
+        new_tickers = [extract_ticker(asset) for asset in selected_assets]
+        st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
+        st.sidebar.success("Assets added to portfolio!")
 else:
     if st.sidebar.button("Add Assets"):
         if custom_tickers and custom_tickers.strip():
@@ -229,26 +270,27 @@ else:
             st.session_state['my_portfolio'] = list(set(st.session_state['my_portfolio'] + new_tickers))
             st.sidebar.success("Assets added to portfolio!")
 
+# Display My Portfolio
 st.sidebar.subheader("My Portfolio")
 if st.session_state['my_portfolio']:
     st.sidebar.write(", ".join(st.session_state['my_portfolio']))
 else:
     st.sidebar.write("No assets selected.")
 
-# Other Optimization Parameters
+# ─────────────────────────────────────────────
+# 2) Optimization Parameters
+# ─────────────────────────────────────────────
 st.sidebar.header("Optimization Parameters")
 start_date = st.sidebar.date_input("Start Date", value=pd.to_datetime("2023-01-01"))
 end_date = st.sidebar.date_input("End Date", value=pd.to_datetime("2023-12-31"))
 risk_free_rate = st.sidebar.number_input("Enter the risk-free rate (in %)", value=2.0, step=0.1)
 
-# Optimization Type Selection
+# Choose Optimization Type
 optimization_type = st.sidebar.selectbox("Choose Optimization Type", ["Maximize Sharpe Ratio", "Risk Parity"])
 
 # ─────────────────────────────────────────────
-# Main Optimization Process
+# 3) Main Optimization Button
 # ─────────────────────────────────────────────
-
-# Ensure we have assets selected before proceeding
 if st.sidebar.button("Optimize Portfolio"):
     if not st.session_state['my_portfolio']:
         st.error("Please add at least one asset to your portfolio.")
@@ -263,10 +305,10 @@ if st.sidebar.button("Optimize Portfolio"):
             if optimizer.returns is None or optimizer.returns.empty:
                 st.error("Failed to fetch data. Please check the tickers and date range.")
             else:
-                # Denoise Returns
+                # 1) Denoise Returns
                 optimizer.denoise_returns()
 
-                # Fetch News
+                # 2) Fetch News & Analyze Sentiment
                 news = optimizer.fetch_news()
                 analyzer = SentimentIntensityAnalyzer()
 
@@ -288,20 +330,20 @@ if st.sidebar.button("Optimize Portfolio"):
                     else:
                         st.subheader(f"No recent news found for {ticker}.")
 
-                # Perform Optimization
+                # 3) Perform Optimization
                 if optimization_type == "Maximize Sharpe Ratio":
                     opt_weights = optimizer.optimize_sharpe_ratio()
-                elif optimization_type == "Risk Parity":
+                else:
                     opt_weights = optimizer.optimize_risk_parity()
 
-                # Calculate Portfolio Statistics
+                # 4) Calculate Portfolio Statistics
                 annual_return, annual_volatility, sharpe_ratio = optimizer.portfolio_stats(opt_weights)
                 var_95 = optimizer.value_at_risk(opt_weights, confidence_level=0.95)
                 cvar_95 = optimizer.conditional_value_at_risk(opt_weights, confidence_level=0.95)
                 max_dd = optimizer.maximum_drawdown(opt_weights)
                 hhi = optimizer.herfindahl_hirschman_index(opt_weights)
 
-                # Display Portfolio Weights
+                # 5) Display Results
                 st.header("📊 Optimized Portfolio Weights")
                 weights_df = pd.DataFrame({
                     'Ticker': optimizer.tickers,
@@ -309,7 +351,6 @@ if st.sidebar.button("Optimize Portfolio"):
                 }).sort_values(by='Weight (%)', ascending=False)
                 st.table(weights_df.set_index('Ticker'))
 
-                # Display Risk Metrics
                 st.header("📈 Portfolio Risk Metrics")
                 st.write(f"**Annual Return:** {annual_return:.2%}")
                 st.write(f"**Annual Volatility:** {annual_volatility:.2%}")
@@ -319,12 +360,9 @@ if st.sidebar.button("Optimize Portfolio"):
                 st.write(f"**Maximum Drawdown:** {max_dd:.2%}")
                 st.write(f"**Herfindahl-Hirschman Index (HHI):** {hhi:.4f}")
 
-                # Display Portfolio Composition Pie Chart
-                fig = px.pie(weights_df, names='Ticker', values='Weight (%)',
-                             title='Portfolio Composition')
+                fig = px.pie(weights_df, names='Ticker', values='Weight (%)', title='Portfolio Composition')
                 st.plotly_chart(fig)
 
-                # Display Risk Metrics Bar Chart
                 metrics = {
                     'Annual Return (%)': annual_return * 100,
                     'Annual Volatility (%)': annual_volatility * 100,
@@ -338,23 +376,26 @@ if st.sidebar.button("Optimize Portfolio"):
                 fig_metrics = px.bar(metrics_df, x='Metric', y='Value', title='Risk Metrics', text='Value')
                 st.plotly_chart(fig_metrics)
 
-                # Display Clusters
+                # 6) Display Clusters
                 clusters = optimizer.cluster_assets()
-                st.header("📂 Asset Clusters")
-                cluster_df = pd.DataFrame({
-                    'Ticker': optimizer.tickers,
-                    'Cluster': clusters
-                }).sort_values(by='Cluster')
-                st.write(cluster_df)
+                if clusters is not None:
+                    st.header("📂 Asset Clusters")
+                    cluster_df = pd.DataFrame({
+                        'Ticker': optimizer.tickers,
+                        'Cluster': clusters
+                    }).sort_values(by='Cluster')
+                    st.write(cluster_df)
 
-                # Optional: Cluster Visualization using PCA
-                pca = PCA(n_components=2)
-                principal_components = pca.fit_transform(optimizer.returns.T)
-                cluster_fig = px.scatter(x=principal_components[:, 0],
-                                         y=principal_components[:, 1],
-                                         color=clusters.astype(str),
-                                         hover_data=[optimizer.tickers],
-                                         title='Asset Clusters Visualization (PCA)')
-                st.plotly_chart(cluster_fig)
+                    # Optional: PCA scatter
+                    pca = PCA(n_components=2)
+                    principal_components = pca.fit_transform(optimizer.returns.T)
+                    cluster_fig = px.scatter(
+                        x=principal_components[:, 0],
+                        y=principal_components[:, 1],
+                        color=clusters.astype(str),
+                        hover_data=[optimizer.tickers],
+                        title='Asset Clusters Visualization (PCA)'
+                    )
+                    st.plotly_chart(cluster_fig)
 
                 st.success("Portfolio optimization completed successfully!")
