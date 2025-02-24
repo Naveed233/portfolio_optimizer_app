@@ -1,5 +1,5 @@
 # Portfolio Optimizer App  
-**ポートフォリオ最適化アプリ**
+**ポートフォリオ最適化アプリ** 
 
 ## Description / 説明  
 A web application for portfolio optimization with efficient frontier visualization, Monte Carlo simulations, and key performance metrics like expected return, risk, and Sharpe ratio. Users can input stock tickers, set timeframes, and optimize portfolios for specific target returns with downloadable allocations.  
