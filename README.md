@@ -70,15 +70,6 @@ Plotlyを活用し、インタラクティブな散布図や比較を提供。
 ## このプロジェクトの重要性
 このプロジェクトは、金融工学、データ分析、ソフトウェア開発のスキルを示しています。機械学習、定量金融、Web開発を統合し、Python、Pandas、NumPy、Plotly、Flask/Django を活用してデータ駆動型の金融アプリケーションを構築する能力を示します。
 
-## 使い方
-
-### リポジトリをクローン
-```bash
-git clone https://github.com/yourusername/portfolio_optimizer_app.git
-cd portfolio_optimizer_app 
-
-![image](https://github.com/user-attachments/assets/4d150897-1162-4395-91ab-d32ece076d3a)
-
 ## 将来の改善点
 暗号資産やオルタナティブ投資のサポート
 リアルタイム金融データAPIとの統合
@@ -87,3 +78,15 @@ cd portfolio_optimizer_app
 
 🚀 ポートフォリオを最適化しましょう！
 
+## 使い方
+
+### リポジトリをクローン
+```bash
+git clone https://github.com/yourusername/portfolio_optimizer_app.git
+cd portfolio_optimizer_app 
+
+-> bash
+pip install -r requirements.txt
+
+-> bash
+python app.py
